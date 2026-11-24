@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Уютные интерактивы</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='leafGrad' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23fbbf24'/%3E%3Cstop offset='55%25' stop-color='%23ea580c'/%3E%3Cstop offset='100%25' stop-color='%239a3412'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M12 46 C10 24, 28 10, 52 12 C50 36, 36 52, 14 50 Z' fill='url(%23leafGrad)' stroke='%23451a03' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M12 48 Q30 32 48 16' fill='none' stroke='%23fef3c7' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M26 35 L23 25 M34 28 L31 19 M31 32 L40 34 M38 25 L45 27' fill='none' stroke='%23fef3c7' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    body {
+      background: radial-gradient(circle at top, #2b1a12 0%, #160f0c 55%, #0e0a08 100%);
+      color: #fef3c7;
+      overflow-x: hidden;
+    }
+    .cozy-card {
+      background: rgba(27, 18, 14, 0.92);
+      border: 1px solid rgba(245, 158, 11, 0.22);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(10px);
+    }
+    .cozy-btn {
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+      transition: transform 0.15s ease, filter 0.15s ease;
+    }
+    .cozy-btn:hover {
+      filter: brightness(1.06);
+      transform: translateY(-1px);
+    }
+    .particle {
+      position: fixed;
+      top: -10%;
+      pointer-events: none;
+      animation: fall linear infinite;
+      opacity: 0.65;
+    }
+    @keyframes fall {
+      0% { transform: translateY(-10vh) rotate(0deg); }
+      100% { transform: translateY(110vh) rotate(360deg); }
+    }
+    @keyframes shakeFast {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+    .shake-fast {
+      animation: shakeFast 0.3s ease;
+    }
+    @keyframes pathShimmer {
+      0%, 100% { filter: drop-shadow(0 0 5px rgba(251, 191, 36, 0.45)); }
+      50% { filter: drop-shadow(0 0 11px rgba(251, 191, 36, 0.85)); }
+    }
+    .path-animated {
+      animation: pathShimmer 2.5s ease-in-out infinite;
+    }
+    @keyframes lampGlow {
+      0%, 100% { opacity: 0.75; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.08); }
+    }
+    .lamp-glow {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: lampGlow 2.8s ease-in-out infinite;
+    }
+    @keyframes smokeRise {
+      0% { transform: translate(0, 0) scale(0.75); opacity: 0.55; }
+      60% { opacity: 0.35; }
+      100% { transform: translate(16px, -42px) scale(1.45); opacity: 0; }
+    }
+    .smoke-puff {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: smokeRise 4.2s ease-out infinite;
+    }
+    .smoke-puff-2 {
+      animation-delay: 1.4s;
+    }
+    .smoke-puff-3 {
+      animation-delay: 2.8s;
+    }
+    @keyframes twinkleStar {
+      0%, 100% { opacity: 0.35; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+    .winter-star {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: twinkleStar 2.6s ease-in-out infinite;
+    }
+  
+    .smoke-puff, .smoke-puff-2, .smoke-puff-3, .winter-star, .path-animated {
+      animation-play-state: running !important;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-amber-100 selection:bg-amber-500/30 pb-[env(safe-area-inset-bottom)]">
+  <div id="particles-container" class="pointer-events-none fixed inset-0 overflow-hidden z-0"></div>
+
+  <div
+    id="toast"
+    class="fixed top-4 left-4 right-4 sm:left-auto sm:top-5 sm:right-5 sm:max-w-sm z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#1b120e]/95 border border-amber-400/40 text-amber-100 text-xs sm:text-sm shadow-2xl transition-all duration-300 translate-x-full opacity-0"
+  >
+    <span id="toast-icon" class="text-base">✨</span>
+    <span id="toast-message"></span>
+  </div>
+
+  <div
+    id="name-modal"
+    class="hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+  >
+    <div class="cozy-card rounded-3xl p-6 w-full max-w-md space-y-4">
+      <h2 class="font-serif text-2xl font-bold text-amber-200">Как тебя зовут?</h2>
+      <p class="text-xs sm:text-sm text-amber-200/75">
+        Имя отобразится в таблице лидеров и на карте твоего маршрута.
+      </p>
+      <form id="name-form" class="space-y-3">
+        <input
+          id="username-input"
+          type="text"
+          maxlength="24"
+          required
+          placeholder="Например: Аня или Гость"
+          class="w-full px-4 py-2.5 rounded-xl bg-[#140e0b] border border-amber-500/25 text-amber-100 placeholder-amber-200/40 text-sm focus:outline-none focus:border-amber-400"
+        />
+        <div class="flex justify-end gap-2">
+          <button
+            type="button"
+            onclick="document.getElementById('name-modal').classList.add('hidden')"
+            class="px-4 py-2 rounded-xl bg-[#241812] hover:bg-[#332219] border border-amber-500/20 text-amber-200/80 text-xs sm:text-sm transition cursor-pointer"
+          >
+            Отмена
+          </button>
+          <button
+            type="submit"
+            class="cozy-btn text-stone-950 font-bold px-5 py-2 rounded-xl text-xs sm:text-sm cursor-pointer"
+          >
+            Продолжить
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div
+    id="admin-modal"
+    class="hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+  >
+    <div class="cozy-card rounded-3xl p-6 w-full max-w-md space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="font-serif text-xl font-bold text-amber-200">Вход в админ-панель</h2>
+        <button
+          type="button"
+          onclick="app.toggleAdminModal()"
+          class="text-amber-200/70 hover:text-amber-200 text-lg cursor-pointer"
+        >
+          ✕
+        </button>
+      </div>
+      <p class="text-xs text-amber-200/75">Введите пароль создателя для перехода в конструктор интерактивов.</p>
+      <div class="flex gap-2">
+        <input
+          id="admin-pass-input"
+          type="password"
+          placeholder="Код доступа"
+          class="flex-1 px-3.5 py-2.5 rounded-xl bg-[#140e0b] border border-amber-500/25 text-amber-100 placeholder-amber-200/40 text-sm focus:outline-none focus:border-amber-400"
+        />
+        <button
+          id="admin-unlock-btn"
+          type="button"
+          onclick="app.unlockAdmin()"
+          class="cozy-btn text-stone-950 font-bold px-5 py-2.5 rounded-xl text-sm cursor-pointer"
+        >
+          Войти
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="main-wrapper" class="relative z-10 max-w-4xl mx-auto px-4 py-6">
+    <nav aria-label="Навигация" class="mb-5 px-4 py-2.5 rounded-2xl bg-[#1b120e]/85 border border-amber-500/20 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onclick="app.showHome()"
+          class="px-3 py-1 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 text-amber-200 font-semibold transition cursor-pointer"
+        >
+          Главная
+        </button>
+        <button
+          type="button"
+          onclick="app.goToQuizzes()"
+          class="px-3 py-1 rounded-xl text-amber-200/80 hover:text-amber-200 hover:bg-amber-500/10 transition cursor-pointer"
+        >
+          Интерактивы
+        </button>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 text-xs">
+        <a
+          href="https://t.me/im_iakovan"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Telegram @im_iakovan"
+          aria-label="Telegram @im_iakovan"
+          class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#140e0b] hover:bg-[#241812] border border-amber-500/20 text-amber-100 transition"
+        >
+          <svg class="w-3.5 h-3.5 text-amber-300 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/>
+          </svg>
+          <span class="text-amber-300 font-semibold">@im_iakovan</span>
+        </a>
+        <a
+          href="https://instagram.com/im_iakovan"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Instagram @im_iakovan"
+          aria-label="Instagram @im_iakovan"
+          class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#140e0b] hover:bg-[#241812] border border-amber-500/20 text-amber-100 transition"
+        >
+          <svg class="w-3.5 h-3.5 text-amber-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+            <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+          </svg>
+          <span class="text-amber-300 font-semibold">@im_iakovan</span>
+        </a>
+        <a
+          href="https://t.me/iakov_ann"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Telegram-канал t.me/iakov_ann"
+          aria-label="Telegram-канал t.me/iakov_ann"
+          class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-bold transition"
+        >
+          <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 11a9 9 0 0 1 9 9"></path>
+            <path d="M4 4a16 16 0 0 1 16 16"></path>
+            <circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none"></circle>
+          </svg>
+          <span>t.me/iakov_ann</span>
+        </a>
+      </div>
+    </nav>
+
+    <header class="flex flex-wrap items-center justify-between gap-4 pb-6 mb-8 border-b border-amber-500/20">
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          onclick="app.handleLogoSecretTap()"
+          title="Листочек"
+          class="w-11 h-11 rounded-2xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/35 flex items-center justify-center text-2xl transition cursor-pointer select-none"
+        >
+          🍂
+        </button>
+        <div>
+          <button
+            type="button"
+            onclick="app.showHome()"
+            class="text-left font-serif text-2xl sm:text-3xl font-bold text-amber-200 hover:text-amber-300 transition cursor-pointer"
+          >
+            Уютные интерактивы
+          </button>
+          <p class="text-xs text-amber-200/65">Осенне-зимние квизы, маршруты и таблица лидеров</p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onclick="app.openNameModal()"
+        class="px-3.5 py-2 rounded-xl bg-[#1b120e] hover:bg-[#261914] border border-amber-500/25 text-xs sm:text-sm text-amber-200 transition cursor-pointer"
+      >
+        Игрок: <strong id="current-user-display" class="text-amber-300">Гость</strong> ✏️
+      </button>
+    </header>
+
+    <section id="view-home" class="space-y-5">
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="font-serif text-xl sm:text-2xl font-bold text-amber-200">🍂 Доступные интерактивы</h2>
+        <button
+          type="button"
+          onclick="app.goToQuizzes()"
+          class="px-3 py-1.5 rounded-xl bg-[#1b120e] hover:bg-[#261914] border border-amber-500/25 text-xs text-amber-200/85 transition cursor-pointer"
+        >
+          Обновить список ↻
+        </button>
+      </div>
+      <div id="quizzes-grid" class="grid grid-cols-1 md:grid-cols-2 gap-5"></div>
+    </section>
+
+    <section id="view-lobby" class="hidden space-y-6">
+      <div class="cozy-card rounded-3xl p-6 sm:p-8 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span id="lobby-badge" class="px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-medium"></span>
+          <button
+            type="button"
+            onclick="app.showHome()"
+            class="text-xs text-amber-200/75 hover:text-amber-200 transition cursor-pointer"
+          >
+            ← Все интерактивы
+          </button>
+        </div>
+        <h2 id="lobby-title" class="font-serif text-3xl font-bold text-amber-100"></h2>
+        <p id="lobby-desc" class="text-sm text-amber-200/75"></p>
+        <div class="pt-2">
+          <button
+            type="button"
+            onclick="app.startQuiz()"
+            class="cozy-btn text-stone-950 font-bold px-6 py-3 rounded-2xl text-sm cursor-pointer"
+          >
+            Начать путешествие →
+          </button>
+        </div>
+      </div>
+
+      <div class="cozy-card rounded-3xl p-6 space-y-3">
+        <h3 class="font-serif text-xl font-bold text-amber-200">🏆 Таблица лидеров</h3>
+        <div id="lobby-leaderboard" class="space-y-2"></div>
+      </div>
+    </section>
+
+    <section id="view-quiz" class="hidden space-y-6">
+      <div class="cozy-card rounded-3xl p-5 sm:p-6 space-y-4">
+        <div class="flex items-center justify-between text-xs sm:text-sm text-amber-200/80">
+          <span id="quiz-progress-text" class="font-semibold text-amber-300"></span>
+          <span id="quiz-score-live" class="px-3 py-1 rounded-xl bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 font-bold"></span>
+        </div>
+
+        <h2 id="question-text" class="font-serif text-xl sm:text-2xl font-bold text-amber-100"></h2>
+        <div id="options-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1"></div>
+      </div>
+
+      <div class="cozy-card rounded-3xl p-4 sm:p-6 space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="font-serif text-lg font-bold text-amber-200">🗺️ Карта пути</h3>
+          <button
+            type="button"
+            onclick="app.showHome()"
+            class="text-xs text-amber-200/70 hover:text-amber-200 transition cursor-pointer"
+          >
+            Выйти на главную
+          </button>
+        </div>
+
+        <div class="relative w-full rounded-2xl overflow-hidden border border-amber-500/25 shadow-inner" style="background: linear-gradient(180deg, #1b2438 0%, #272233 58%, #342118 100%);">
+          <svg id="journey-map-svg" viewBox="0 0 1200 460" class="w-full h-auto block">
+            <defs>
+              <linearGradient id="skyTwilight" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#1a243b" />
+                <stop offset="55%" stop-color="#2b2336" />
+                <stop offset="100%" stop-color="#3b2419" />
+              </linearGradient>
+              <linearGradient id="hillBack" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#f8fafc" />
+                <stop offset="65%" stop-color="#e2e8f0" />
+                <stop offset="100%" stop-color="#cbd5e1" />
+              </linearGradient>
+              <linearGradient id="hillFront" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#ffffff" />
+                <stop offset="65%" stop-color="#f1f5f9" />
+                <stop offset="100%" stop-color="#dce5ef" />
+              </linearGradient>
+              <radialGradient id="warmLampAura" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fde68a" stop-opacity="0.65" />
+                <stop offset="55%" stop-color="#f59e0b" stop-opacity="0.22" />
+                <stop offset="100%" stop-color="#f59e0b" stop-opacity="0" />
+              </radialGradient>
+            </defs>
+            <defs>
+              <linearGradient id="mountainPeakFar" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#3b4d6b" />
+                <stop offset="100%" stop-color="#222a3d" />
+              </linearGradient>
+              <linearGradient id="mountainPeakNear" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#495b7a" />
+                <stop offset="100%" stop-color="#272c3d" />
+              </linearGradient>
+              <linearGradient id="snowCapGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#fffbeb" stop-opacity="0.92" />
+                <stop offset="100%" stop-color="#cbd5e1" stop-opacity="0.45" />
+              </linearGradient>
+              <linearGradient id="cabinWallGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#7c3f1d" />
+                <stop offset="100%" stop-color="#4e250f" />
+              </linearGradient>
+              <linearGradient id="cabinSnowRoof" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#fef9c3" />
+                <stop offset="100%" stop-color="#e2e8f0" />
+              </linearGradient>
+            </defs>
+            <rect width="1200" height="460" fill="url(#skyTwilight)" />
+
+            <!-- Новогодние звёздочки на фоне -->
+            <g id="map-stars-layer" pointer-events="none">
+              <circle cx="150" cy="64" r="2.2" fill="#fde68a" class="winter-star" />
+              <circle cx="340" cy="48" r="1.8" fill="#fef3c7" class="winter-star" style="animation-delay:0.7s" />
+              <circle cx="520" cy="74" r="2.4" fill="#fde047" class="winter-star" style="animation-delay:1.3s" />
+              <circle cx="690" cy="42" r="2" fill="#fef9c3" class="winter-star" style="animation-delay:0.4s" />
+              <circle cx="860" cy="68" r="2.3" fill="#fde68a" class="winter-star" style="animation-delay:1.9s" />
+            </g>
+
+            <!-- Красивые заснеженные горы на заднем плане -->
+            <g id="map-mountains-layer" pointer-events="none">
+              <polygon points="80,255 270,92 475,255" fill="url(#mountainPeakFar)" opacity="0.78" />
+              <polygon points="270,92 225,132 252,144 270,130 292,145 316,130" fill="url(#snowCapGrad)" />
+
+              <polygon points="360,255 585,78 825,255" fill="url(#mountainPeakNear)" opacity="0.82" />
+              <polygon points="585,78 532,122 562,135 585,118 612,136 640,120" fill="url(#snowCapGrad)" />
+
+              <polygon points="690,255 895,104 1125,255" fill="url(#mountainPeakFar)" opacity="0.76" />
+              <polygon points="895,104 850,140 876,152 895,136 918,153 942,138" fill="url(#snowCapGrad)" />
+            </g>
+
+            <g id="map-hills-layer">
+              <!-- Основной белый заснеженный холм -->
+              <path
+                d="M 0 388 C 240 342, 465 316, 705 278 C 885 248, 1025 218, 1200 185 L 1200 460 L 0 460 Z"
+                fill="url(#hillBack)"
+              />
+              <!-- Передний белый заснеженный холм -->
+              <path
+                d="M 0 426 C 280 392, 560 370, 840 352 C 990 342, 1100 334, 1200 328 L 1200 460 L 0 460 Z"
+                fill="url(#hillFront)"
+              />
+            </g>
+
+            <g id="map-hill-snow-layer" pointer-events="none"></g>
+
+            <g id="map-decor-layer" pointer-events="none">
+              <!-- Большой новогодний домик, твёрдо стоящий на склоне холма -->
+              <g id="festive-cabin" transform="translate(835, 224) scale(1.55)">
+                <!-- Снежный сугроб-основание под домиком прямо на холме -->
+                <ellipse cx="4" cy="55" rx="46" ry="9" fill="#f1f5f9" />
+                <ellipse cx="4" cy="57" rx="52" ry="5" fill="#94a3b8" opacity="0.45" />
+                <!-- Клубы дыма -->
+                <circle cx="24" cy="-16" r="6" fill="#fef3c7" class="smoke-puff" />
+                <circle cx="28" cy="-24" r="8" fill="#f8fafc" class="smoke-puff smoke-puff-2" />
+                <circle cx="32" cy="-33" r="10" fill="#fde68a" class="smoke-puff smoke-puff-3" />
+                <!-- Труба -->
+                <rect x="18" y="-6" width="10" height="22" rx="2" fill="#5c2c16" />
+                <!-- Стены домика -->
+                <rect x="-26" y="14" width="64" height="40" rx="4" fill="url(#cabinWallGrad)" stroke="#3b1b0b" stroke-width="2" />
+                <!-- Крыша со снегом -->
+                <polygon points="-34,16 6,-12 46,16" fill="#7c2d12" />
+                <path d="M-34 16 L6 -12 L46 16 L38 18 L6 -4 L-26 18 Z" fill="url(#cabinSnowRoof)" />
+                <!-- Тёплое светящееся окошко -->
+                <rect x="-13" y="25" width="16" height="16" rx="3" fill="#fde047" stroke="#f59e0b" stroke-width="1.5" />
+                <line x1="-13" y1="33" x2="3" y2="33" stroke="#92400e" stroke-width="1.5" />
+                <line x1="-5" y1="25" x2="-5" y2="41" stroke="#92400e" stroke-width="1.5" />
+                <!-- Дверь -->
+                <rect x="13" y="26" width="14" height="28" rx="2" fill="#451a03" />
+                <circle cx="24" cy="41" r="1.5" fill="#fbbf24" />
+                <!-- Новогодняя гирлянда под крышей -->
+                <circle cx="-18" cy="18" r="2.5" fill="#fde047" />
+                <circle cx="-6" cy="18" r="2.5" fill="#fb7185" />
+                <circle cx="6" cy="18" r="2.5" fill="#38bdf8" />
+                <circle cx="18" cy="18" r="2.5" fill="#fde047" />
+                <circle cx="30" cy="18" r="2.5" fill="#4ade80" />
+              </g>
+
+              <!-- Большая статичная новогодняя ёлка (вершина звезды на y = -10 в локальных координатах) -->
+              <g id="festive-tree-group" transform="translate(1050, 176) scale(1.6)">
+                <ellipse cx="0" cy="76" rx="42" ry="9" fill="#f1f5f9" />
+                <ellipse cx="0" cy="80" rx="50" ry="6" fill="#94a3b8" opacity="0.45" />
+                <rect x="-5" y="62" width="10" height="15" rx="2" fill="#5c3a21" />
+                <polygon points="0,0 -24,26 24,26" fill="#1f6f4a" />
+                <polygon points="0,16 -32,45 32,45" fill="#185c3d" />
+                <polygon points="0,33 -40,63 40,63" fill="#134a31" />
+                <!-- Вершина ёлки (звезда) -->
+                <polygon id="tree-top-star" points="0,-10 2.5,-4.5 8.5,-4 4,0 5.5,6 0,2.5 -5.5,6 -4,0 -8.5,-4 -2.5,-4.5" fill="#fde047" />
+                <!-- Новогодние шары -->
+                <circle cx="-10" cy="22" r="3.2" fill="#fbbf24" />
+                <circle cx="9" cy="24" r="3" fill="#f87171" />
+                <circle cx="12" cy="40" r="3.2" fill="#f87171" />
+                <circle cx="-12" cy="42" r="3" fill="#38bdf8" />
+                <circle cx="-16" cy="55" r="3.2" fill="#38bdf8" />
+                <circle cx="15" cy="56" r="3.2" fill="#fde047" />
+                <circle cx="0" cy="48" r="2.8" fill="#4ade80" />
+              </g>
+            </g>
+            <g id="map-masks-layer"></g>
+            <g id="map-guides-layer"></g>
+            <g id="map-paths-layer"></g>
+            <g id="map-nodes-layer"></g>
+          </svg>
+          <div
+            id="map-traveler"
+            title="Тёплая лампа"
+            class="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-500 flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-amber-400/20 border border-amber-300/50"
+            style="filter: drop-shadow(0 0 14px rgba(251, 191, 36, 0.95));"
+          >
+            <svg class="w-8 h-8 sm:w-9 sm:h-9 text-amber-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M9 2h6v2h-6V2zm-2 4h10l1.5 3.5L17 20H7l-1.5-10.5L7 6zm2 4v8h6v-8H9zm1 11h4v2h-4v-2z"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="cozy-card rounded-3xl p-5 space-y-3">
+        <h3 class="font-serif text-lg font-bold text-amber-200">🏆 Лидеры в реальном времени</h3>
+        <div id="quiz-live-leaderboard" class="space-y-2"></div>
+      </div>
+    </section>
+
+    <section id="view-results" class="hidden space-y-6">
+      <div class="cozy-card rounded-3xl p-6 sm:p-8 text-center space-y-4">
+        <div id="result-emoji" class="text-5xl">🎄</div>
+        <h2 class="font-serif text-3xl font-bold text-amber-100">
+          Итог для <span id="result-username" class="text-amber-300"></span>
+        </h2>
+        <p class="text-lg font-semibold text-amber-200">
+          Верных ответов: <span id="result-score" class="text-emerald-300"></span> из <span id="result-total"></span>
+        </p>
+        <p id="route-conclusion-text" class="text-sm text-amber-200/80 max-w-2xl mx-auto"></p>
+
+        <div class="flex flex-wrap justify-center gap-4 pt-1 text-xs">
+          <span class="px-3.5 py-1.5 rounded-xl bg-amber-500/15 border border-amber-400/30 text-amber-300 font-semibold">
+            Жёлтый путь: <strong id="summary-yellow-count"></strong>
+          </span>
+          <span class="px-3.5 py-1.5 rounded-xl bg-sky-500/15 border border-sky-400/30 text-sky-300 font-semibold">
+            Синий путь: <strong id="summary-blue-count"></strong>
+          </span>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-3 pt-3">
+          <button
+            type="button"
+            onclick="app.downloadRouteMap()"
+            class="cozy-btn text-stone-950 font-bold px-5 py-2.5 rounded-xl text-sm cursor-pointer"
+          >
+            Скачать карту (PNG)
+          </button>
+          <button
+            type="button"
+            onclick="app.showHome()"
+            class="px-5 py-2.5 rounded-xl bg-[#241812] hover:bg-[#332219] border border-amber-500/25 text-amber-200 text-sm transition cursor-pointer"
+          >
+            На главную
+          </button>
+        </div>
+      </div>
+
+      <div class="cozy-card rounded-3xl p-5 space-y-3">
+        <h3 class="font-serif text-lg font-bold text-amber-200">🗺️ Итоговый маршрут</h3>
+        <div id="final-map-preview" class="relative w-full rounded-2xl overflow-hidden bg-[#111827] border border-amber-500/20"></div>
+      </div>
+
+      <div class="cozy-card rounded-3xl p-5 space-y-3">
+        <h3 class="font-serif text-lg font-bold text-amber-200">🏆 Таблица лидеров</h3>
+        <div id="results-leaderboard" class="space-y-2"></div>
+      </div>
+
+      <div class="cozy-card rounded-3xl p-6 space-y-4">
+        <h3 class="font-serif text-xl font-bold text-amber-200">🎁 Оставить оценку и тёплое пожелание</h3>
+        <form id="gift-form" class="space-y-4">
+          <div>
+            <label class="block text-xs text-amber-200/75 mb-2">Оценка интерактива</label>
+            <div class="grid grid-cols-5 gap-1.5 sm:gap-2">
+              <button type="button" data-rating="1" class="rating-btn py-2 px-1 rounded-xl bg-stone-800 border border-amber-500/20 hover:border-amber-400 text-xs sm:text-base transition cursor-pointer">1 ⭐</button>
+              <button type="button" data-rating="2" class="rating-btn py-2 px-1 rounded-xl bg-stone-800 border border-amber-500/20 hover:border-amber-400 text-xs sm:text-base transition cursor-pointer">2 ⭐</button>
+              <button type="button" data-rating="3" class="rating-btn py-2 px-1 rounded-xl bg-stone-800 border border-amber-500/20 hover:border-amber-400 text-xs sm:text-base transition cursor-pointer">3 ⭐</button>
+              <button type="button" data-rating="4" class="rating-btn py-2 px-1 rounded-xl bg-stone-800 border border-amber-500/20 hover:border-amber-400 text-xs sm:text-base transition cursor-pointer">4 ⭐</button>
+              <button type="button" data-rating="5" class="rating-btn py-2 px-1 rounded-xl bg-amber-500/30 border-2 border-amber-400 text-xs sm:text-base font-bold transition cursor-pointer">5 ⭐</button>
+            </div>
+            <input id="selected-rating" type="hidden" value="5" />
+          </div>
+
+          <div>
+            <label class="block text-xs text-amber-200/75 mb-2">Символический подарок</label>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <button type="button" data-gift="☕ Какао" class="gift-choice-btn p-2.5 rounded-xl bg-amber-500/25 border-2 border-amber-400 text-xs text-center transition cursor-pointer">
+              ☕ Какао
+            </button>
+            <button type="button" data-gift="🍷 Глинтвейн" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+              🍷 Глинтвейн
+            </button>
+            <button type="button" data-gift="🧣 Плед" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+              🧣 Плед
+            </button>
+            <button type="button" data-gift="🕯️ Ароматная свеча" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+              🕯️ Ароматная свеча
+            </button>
+            <button type="button" data-gift="🍪 Имбирное печенье" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+              🍪 Имбирное печенье
+            </button>
+            <button type="button" data-gift="🎸 Новая струна" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+              🎸 Новая струна
+            </button>
+            <button type="button" data-gift="✨ Звёздный фонарик" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+              ✨ Звёздный фонарик
+            </button>
+            <button type="button" data-gift="📖 Тёплая книга" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+              📖 Тёплая книга
+            </button>
+            <button type="button" data-gift="🎄 Мини-ёлочка" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+              🎄 Мини-ёлочка
+            </button>
+          </div>
+            <input id="selected-gift" type="hidden" value="Горячий какао ☕" />
+          </div>
+
+          <div>
+            <label class="block text-xs text-amber-200/75 mb-1.5">Сообщение автору</label>
+            <textarea
+              id="gift-message"
+              rows="2"
+              maxlength="500"
+              placeholder="Напиши пару слов..."
+              class="w-full px-3.5 py-2.5 rounded-xl bg-[#140e0b] border border-amber-500/25 text-sm text-amber-100 placeholder-amber-200/40 focus:outline-none focus:border-amber-400"
+            ></textarea>
+          </div>
+
+          <button
+            id="send-gift-btn"
+            type="submit"
+            class="cozy-btn text-stone-950 font-bold px-6 py-3 rounded-2xl text-sm cursor-pointer"
+          >
+            <span>Отправить подарок</span> 🎁
+          </button>
+        </form>
+      </div>
+    </section>
+  </div>
+
+    <script src="/script.js"></script>
+</body>
+</html>
