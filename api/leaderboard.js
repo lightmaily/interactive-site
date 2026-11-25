@@ -2,11 +2,16 @@ import { getData, setData, verifyAdminPasscode } from './_storage.js';
 
 function sortEntries(list) {
   return [...list].sort((a, b) => {
-    const scoreDiff = (Number(b.score) || 0) - (Number(a.score) || 0);
+    const scoreDiff = (Number(b?.score) || 0) - (Number(a?.score) || 0);
     if (scoreDiff !== 0) return scoreDiff;
-    const durA = typeof a.durationSec === 'number' && a.durationSec > 0 ? a.durationSec : 999999;
-    const durB = typeof b.durationSec === 'number' && b.durationSec > 0 ? b.durationSec : 999999;
-    return durA - durB;
+
+    const aHasTime = typeof a?.durationSec === 'number' && Number.isFinite(a.durationSec) && a.durationSec >= 0;
+    const bHasTime = typeof b?.durationSec === 'number' && Number.isFinite(b.durationSec) && b.durationSec >= 0;
+
+    if (aHasTime && bHasTime) return a.durationSec - b.durationSec;
+    if (aHasTime) return -1;
+    if (bHasTime) return 1;
+    return 0;
   });
 }
 
@@ -19,7 +24,14 @@ export default async function handler(req, res) {
     if (quizId) {
       return res.status(200).json({ leaderboard: sortEntries(boards[quizId] || []) });
     }
-    return res.status(200).json({ leaderboards: boards });
+
+    const sortedBoards = {};
+    if (boards && typeof boards === 'object') {
+      for (const [key, list] of Object.entries(boards)) {
+        sortedBoards[key] = Array.isArray(list) ? sortEntries(list) : [];
+      }
+    }
+    return res.status(200).json({ leaderboards: sortedBoards });
   }
 
   let body = req.body || {};
@@ -38,7 +50,9 @@ export default async function handler(req, res) {
     const total = Math.max(1, Number(body.total) || 10);
     const date = String(body.date || '').trim() || new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
     const mode = body.mode === 'speed' ? 'speed' : 'relaxed';
-    const durationSec = typeof body.durationSec === 'number' && body.durationSec >= 0 ? Math.round(body.durationSec * 10) / 10 : null;
+    const durationSec = typeof body.durationSec === 'number' && Number.isFinite(body.durationSec) && body.durationSec >= 0
+      ? Math.round(body.durationSec * 10) / 10
+      : null;
 
     if (!quizId) {
       return res.status(400).json({ error: 'quizId обязателен' });
@@ -54,14 +68,27 @@ export default async function handler(req, res) {
 
     if (idx !== -1) {
       const prev = list[idx];
-      const isBetterScore = score > (Number(prev.score) || 0);
-      const isSameScoreFaster =
-        score === (Number(prev.score) || 0) &&
-        durationSec !== null &&
-        (typeof prev.durationSec !== 'number' || durationSec < prev.durationSec);
+      const prevScore = Number(prev.score) || 0;
+      const prevDur = typeof prev.durationSec === 'number' && Number.isFinite(prev.durationSec) ? prev.durationSec : null;
 
-      if (isBetterScore || isSameScoreFaster) {
-        list[idx] = { name, score, total, date, mode, durationSec };
+      if (score > prevScore) {
+        list[idx] = {
+          name,
+          score,
+          total,
+          date,
+          mode: durationSec !== null ? mode : (prev.mode || mode),
+          durationSec: durationSec !== null ? durationSec : prevDur
+        };
+      } else if (score === prevScore && durationSec !== null && (prevDur === null || durationSec < prevDur)) {
+        list[idx] = {
+          name,
+          score,
+          total,
+          date,
+          mode: 'speed',
+          durationSec
+        };
       }
     } else {
       list.push({ name, score, total, date, mode, durationSec });

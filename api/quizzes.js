@@ -28,8 +28,16 @@ function sanitizeQuizPayload(rawQuiz, existingQuiz = null) {
     const opts = Array.isArray(item.options) ? item.options.map(o => String(o || '').trim().slice(0, 120)) : [];
     const correct = Number(item.correct);
 
-    if (!q || opts.length !== 4 || opts.some(o => !o) || ![0, 1, 2, 3].includes(correct)) {
-      return { error: `Проверьте заполнение вопроса #${i + 1}` };
+    if (
+      !q ||
+      opts.length < 2 ||
+      opts.length > 6 ||
+      opts.some(o => !o) ||
+      !Number.isInteger(correct) ||
+      correct < 0 ||
+      correct >= opts.length
+    ) {
+      return { error: `Проверьте заполнение вопроса #${i + 1} (нужно от 2 до 6 непустых вариантов)` };
     }
     questions.push({ q, options: opts, correct });
   }
