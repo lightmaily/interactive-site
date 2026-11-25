@@ -9,6 +9,43 @@ Object.assign(window.app, {
     this.updateInviteNavButton();
   },
 
+  async verifyOwnerSession() {
+    const sess = this.state.ownerSession;
+    if (!sess?.code || !sess?.ownerToken) {
+      this.updateInviteNavButton();
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'verify',
+          code: sess.code,
+          ownerToken: sess.ownerToken
+        })
+      });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => ({}));
+
+      if (data.valid !== true) {
+        this.saveOwnerSession(null);
+        this.closeCreatorModal();
+        document.getElementById('lobby-edit-owner-btn')?.classList.add('hidden');
+        this.showToast('Ваш инвайт-код был отозван администратором', '🔒');
+        return;
+      }
+
+      if ((data.ownedQuizId || null) !== (sess.ownedQuizId || null)) {
+        this.saveOwnerSession({
+          ...sess,
+          ownedQuizId: data.ownedQuizId || null
+        });
+      }
+    } catch {}
+  },
+
   saveOwnerSession(session) {
     this.state.ownerSession = session;
     if (session) localStorage.setItem('cozy_owner_session', JSON.stringify(session));
@@ -67,10 +104,14 @@ Object.assign(window.app, {
     }
 
     try {
-      const res = await fetch('/api/invites', {
+     const res = await fetch('/api/invites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'redeem', code })
+        body: JSON.stringify({
+          action: 'redeem',
+          code,
+          username: this.state.username || ''
+        })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ownerToken) {
@@ -357,6 +398,11 @@ Object.assign(window.app, {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.quiz) {
+        if (res.status === 401 || res.status === 403) {
+          this.saveOwnerSession(null);
+          this.closeCreatorModal();
+          document.getElementById('lobby-edit-owner-btn')?.classList.add('hidden');
+        }
         this.showToast(data.error || 'Не удалось сохранить интерактив', '⚠️');
         return;
       }

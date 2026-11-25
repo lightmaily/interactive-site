@@ -80,7 +80,7 @@ const adminApp = {
     await Promise.all([this.loadInvites(), this.loadQuizzes()]);
   },
 
-  async loadInvites() {
+ async loadInvites() {
     const res = await fetch(`/api/invites?passcode=${encodeURIComponent(this.passcode)}`);
     const data = await res.json().catch(() => ({}));
     const list = Array.isArray(data.invites) ? data.invites : [];
@@ -92,30 +92,36 @@ const adminApp = {
     }
 
     container.innerHTML = list.map(inv => {
-      const statusBadge =
-        inv.status === 'active'
-          ? '<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs">Свободен</span>'
-          : inv.status === 'redeemed'
-          ? '<span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-xs">Активирован (ждёт публикацию)</span>'
-          : inv.status === 'completed'
-          ? `<span class="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 text-xs">Использован: ${this.esc(inv.quizTitle || inv.quizId)}</span>`
-          : '<span class="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-xs">Отозван</span>';
+      const who = inv.usedBy || inv.redeemedBy;
+      const whoText = who ? ` (${this.esc(who)})` : '';
+
+      let statusBadge = '<span class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs">Свободен</span>';
+      if (inv.revoked || inv.status === 'revoked') {
+        statusBadge = '<span class="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-xs">Отозван</span>';
+      } else if (inv.status === 'completed' || inv.quizId) {
+        statusBadge = `<span class="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-xs">Использован${whoText}</span>`;
+      } else if (inv.status === 'redeemed' || inv.ownerTokenHash) {
+        statusBadge = `<span class="px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 text-xs">Активирован${whoText}</span>`;
+      }
+
+      const canRevoke = inv.status !== 'revoked' && !inv.revoked && inv.status !== 'completed';
 
       return `
         <div class="p-3 rounded-2xl bg-[#140e0b] border border-amber-500/20 flex flex-wrap items-center justify-between gap-3">
           <div class="space-y-0.5">
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
               <code class="font-mono text-sm font-bold text-amber-300">${this.esc(inv.code)}</code>
               ${statusBadge}
             </div>
             ${inv.note ? `<div class="text-xs text-amber-200/70">Заметка: ${this.esc(inv.note)}</div>` : ''}
+            ${inv.quizTitle ? `<div class="text-xs text-amber-200/55">Квиз: ${this.esc(inv.quizTitle)}</div>` : ''}
           </div>
           <div class="flex items-center gap-2">
             <button type="button" onclick="adminApp.copyCode('${this.esc(inv.code)}')" class="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 text-xs cursor-pointer">
               Копировать 📋
             </button>
             ${
-              inv.status !== 'revoked' && inv.status !== 'completed'
+              canRevoke
                 ? `<button type="button" onclick="adminApp.revokeInvite('${this.esc(inv.code)}')" class="px-3 py-1.5 rounded-xl bg-rose-950/70 hover:bg-rose-900 text-rose-200 text-xs cursor-pointer">Отозвать</button>`
                 : ''
             }
@@ -135,18 +141,19 @@ const adminApp = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'generate',
+        action: 'create',
         passcode: this.passcode,
         note: noteInput.value.trim()
       })
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
+    const createdCode = data.code || data.invite?.code;
+    if (!res.ok || !createdCode) {
       this.toast(data.error || 'Ошибка генерации');
       return;
     }
     noteInput.value = '';
-    this.toast(`Создан код: ${data.invite.code}`);
+    this.toast(`Создан код: ${createdCode}`);
     await this.loadInvites();
   },
 
@@ -160,9 +167,12 @@ const adminApp = {
         code
       })
     });
+    const data = await res.json().catch(() => ({}));
     if (res.ok) {
       this.toast(`Код ${code} отозван`);
       await this.loadInvites();
+    } else {
+      this.toast(data.error || 'Не удалось отозвать код');
     }
   },
 

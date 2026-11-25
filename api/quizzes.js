@@ -139,6 +139,7 @@ export default async function handler(req, res) {
       invites[matchedInviteIdx].status = 'completed';
       invites[matchedInviteIdx].quizId = newQuiz.id;
       invites[matchedInviteIdx].quizTitle = newQuiz.title;
+      invites[matchedInviteIdx].usedBy = newQuiz.author || invites[matchedInviteIdx].redeemedBy || null;
       await setData('invites', invites);
     }
 

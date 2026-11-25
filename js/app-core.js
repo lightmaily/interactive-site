@@ -275,9 +275,10 @@ window.app = {
 
       const hadNameBefore = Boolean(this.state.username);
       this.state.username = name;
+      localStorage.setItem('cozy_username', name);
       this.updateUserDisplay();
       document.getElementById('name-modal').classList.add('hidden');
-      this.showToast(hadNameBefore ? `Имя обновлено: ${name}` : `Добро пожаловать, ${name}!`, hadNameBefore ? '✏️' : '🧣');
+      this.showToast(hadNameBefore ? `Приятно снова видеть, ${name}!` : `Добро пожаловать, ${name}!`, hadNameBefore ? '🧣' : '✨');
 
       const pendingQuizId = this.state.pendingQuizIdAfterName;
       const shouldStart = this.state.startQuizAfterNameSubmit;
@@ -289,6 +290,12 @@ window.app = {
         if (quiz) this.state.activeQuiz = quiz;
       }
       if (shouldStart && this.state.activeQuiz) this.startQuiz();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        this.verifyOwnerSession();
+      }
     });
 
     window.addEventListener('hashchange', () => {
@@ -354,14 +361,17 @@ window.app = {
   },
 
   init() {
-    this.state.username = '';
+    this.state.username = (localStorage.getItem('cozy_username') || '').trim().slice(0, 24);
     this.updateUserDisplay();
     this.createParticles();
     this.loadData();
     this.loadOwnerSession();
     this.bindEvents();
 
-    if (window.location.hash === '#admin') this.toggleAdminModal();
+    if (window.location.hash === '#admin') {
+      this.toggleAdminModal();
+      return;
+    }
 
     const routeQuizId = this.getQuizIdFromUrl();
     this.state.initialRouteQuizId = routeQuizId;
@@ -372,8 +382,10 @@ window.app = {
       if (localQuiz) this.openLobby(localQuiz.id, { replaceHistory: true });
     }
 
+    this.verifyOwnerSession();
     this.fetchGlobalQuizzes();
     this.fetchGlobalLeaderboards();
+    this.openNameModal();
   }
 };
 
