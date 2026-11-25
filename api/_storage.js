@@ -107,9 +107,22 @@ function getStorageStatus() {
   };
 }
 
+function stripOuterQuotes(value) {
+  const s = String(value ?? '').trim();
+  if (
+    (s.startsWith('"') && s.endsWith('"')) ||
+    (s.startsWith("'") && s.endsWith("'"))
+  ) {
+    return s.slice(1, -1).trim();
+  }
+  return s;
+}
+
 function verifyAdminPasscode(passcode) {
-  const expected = process.env.ADMIN_PASSCODE || process.env.ADMIN_PASSWORD || 'cozy2026';
-  return typeof passcode === 'string' && passcode.trim().length > 0 && passcode.trim() === expected;
+  const expectedRaw = process.env.ADMIN_PASSCODE || process.env.ADMIN_PASSWORD || 'cozy2026';
+  const input = stripOuterQuotes(passcode);
+  const expected = stripOuterQuotes(expectedRaw);
+  return input.length > 0 && input === expected;
 }
 
 module.exports = {
