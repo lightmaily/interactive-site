@@ -141,6 +141,140 @@
     </div>
   </div>
 
+  <!-- Модальное окно ввода инвайт-кода -->
+  <div
+    id="invite-modal"
+    class="hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+  >
+    <div class="cozy-card rounded-3xl p-6 w-full max-w-md space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="font-serif text-xl font-bold text-amber-200">🎟️ Вход по инвайт-коду</h2>
+        <button
+          type="button"
+          onclick="app.closeInviteModal()"
+          class="text-amber-200/70 hover:text-amber-200 text-lg cursor-pointer"
+        >
+          ✕
+        </button>
+      </div>
+      <p class="text-xs sm:text-sm text-amber-200/75">
+        Введите спец-код от автора: вы сможете создать <strong class="text-amber-300">ровно 1 интерактив</strong> и редактировать только его.
+      </p>
+      <form id="invite-form" class="space-y-3">
+        <input
+          id="invite-code-input"
+          type="text"
+          maxlength="24"
+          required
+          placeholder="COZY-XXXX-XXXX"
+          class="w-full px-4 py-2.5 rounded-xl bg-[#140e0b] border border-amber-500/25 text-amber-100 placeholder-amber-200/40 text-sm uppercase tracking-wider font-mono focus:outline-none focus:border-amber-400"
+        />
+        <div class="flex justify-end gap-2">
+          <button
+            type="button"
+            onclick="app.closeInviteModal()"
+            class="px-4 py-2 rounded-xl bg-[#241812] hover:bg-[#332219] border border-amber-500/20 text-amber-200/80 text-xs sm:text-sm transition cursor-pointer"
+          >
+            Отмена
+          </button>
+          <button
+            id="invite-submit-btn"
+            type="submit"
+            class="cozy-btn text-stone-950 font-bold px-5 py-2 rounded-xl text-xs sm:text-sm cursor-pointer"
+          >
+            Активировать код
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Модальное окно конструктора / редактора своего интерактива -->
+  <div
+    id="creator-modal"
+    class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur-sm overflow-y-auto p-4"
+  >
+    <div class="cozy-card rounded-3xl p-5 sm:p-7 w-full max-w-3xl mx-auto my-6 space-y-5">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-amber-500/20 pb-4">
+        <div>
+          <span id="creator-mode-badge" class="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-semibold">
+            🎟️ Инвайт-режим
+          </span>
+          <h2 id="creator-modal-title" class="font-serif text-2xl font-bold text-amber-100 mt-1.5">
+            Создать свой интерактив
+          </h2>
+        </div>
+        <button
+          type="button"
+          onclick="app.closeCreatorModal()"
+          class="px-3 py-1.5 rounded-xl bg-[#241812] hover:bg-[#332219] border border-amber-500/25 text-amber-200/80 text-xs cursor-pointer"
+        >
+          Закрыть ✕
+        </button>
+      </div>
+
+      <form id="owner-quiz-form" class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-amber-200/80 mb-1">Название интерактива</label>
+            <input id="owner-quiz-title" type="text" required maxlength="120" placeholder="Например: Зимний вечер в Ташкенте" class="w-full px-3.5 py-2.5 rounded-xl bg-[#140e0b] border border-amber-500/25 text-amber-100 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs text-amber-200/80 mb-1">Бейдж / Тема</label>
+            <select id="owner-quiz-badge" class="w-full px-3.5 py-2.5 rounded-xl bg-[#140e0b] border border-amber-500/25 text-amber-100 text-sm">
+              <option value="🍂 Осенний вечер">🍂 Осенний вечер</option>
+              <option value="❄️ Зимняя сказка">❄️ Зимняя сказка</option>
+              <option value="☕ Уютные посиделки">☕ Уютные посиделки</option>
+              <option value="🎄 Новогодний квиз">🎄 Новогодний квиз</option>
+              <option value="🧭 Приключение">🧭 Приключение</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-amber-200/80 mb-1">Имя автора</label>
+            <input id="owner-quiz-author" type="text" maxlength="40" placeholder="Ваше имя" class="w-full px-3.5 py-2.5 rounded-xl bg-[#140e0b] border border-amber-500/25 text-amber-100 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs text-amber-200/80 mb-1">Количество вопросов</label>
+            <select id="owner-quiz-count" onchange="app.renderOwnerQuestionInputs()" class="w-full px-3.5 py-2.5 rounded-xl bg-[#140e0b] border border-amber-500/25 text-amber-100 text-sm">
+              <option value="5">5 вопросов</option>
+              <option value="8">8 вопросов</option>
+              <option value="10" selected>10 вопросов</option>
+              <option value="12">12 вопросов</option>
+              <option value="15">15 вопросов</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs text-amber-200/80 mb-1">Краткое описание</label>
+          <textarea id="owner-quiz-desc" rows="2" required maxlength="400" placeholder="О чём этот интерактив..." class="w-full px-3.5 py-2.5 rounded-xl bg-[#140e0b] border border-amber-500/25 text-amber-100 text-sm"></textarea>
+        </div>
+
+        <div id="owner-questions-list" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1"></div>
+
+        <div class="flex flex-wrap justify-end gap-2 pt-2 border-t border-amber-500/20">
+          <button
+            type="button"
+            onclick="app.closeCreatorModal()"
+            class="px-4 py-2.5 rounded-xl bg-[#241812] hover:bg-[#332219] border border-amber-500/20 text-amber-200/80 text-xs sm:text-sm cursor-pointer"
+          >
+            Отмена
+          </button>
+          <button
+            id="owner-quiz-save-btn"
+            type="submit"
+            class="cozy-btn text-stone-950 font-bold px-6 py-2.5 rounded-xl text-xs sm:text-sm cursor-pointer"
+          >
+            Сохранить интерактив ✨
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div
     id="admin-modal"
     class="hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
@@ -192,6 +326,14 @@
           class="px-3 py-1 rounded-xl text-amber-200/80 hover:text-amber-200 hover:bg-amber-500/10 transition cursor-pointer"
         >
           Интерактивы
+        </button>
+        <button
+          id="nav-invite-action-btn"
+          type="button"
+          onclick="app.handleInviteNavClick()"
+          class="px-3 py-1 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/30 text-emerald-300 font-semibold transition cursor-pointer"
+        >
+          🎟️ Ввести код
         </button>
       </div>
       <div class="flex flex-wrap items-center gap-2 text-xs">
@@ -273,7 +415,7 @@
     </header>
 
     <section id="view-home" class="space-y-5">
-      <div class="flex items-center justify-between gap-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
         <h2 class="font-serif text-xl sm:text-2xl font-bold text-amber-200">🍂 Доступные интерактивы</h2>
         <button
           type="button"
@@ -283,6 +425,28 @@
           Обновить список ↻
         </button>
       </div>
+
+      <!-- Поиск и фильтр по тегам -->
+      <div class="cozy-card rounded-2xl p-3.5 sm:p-4 space-y-3">
+        <div class="flex flex-col sm:flex-row gap-2.5">
+          <input
+            id="home-search-input"
+            type="text"
+            placeholder="Поиск по названию, описанию или автору..."
+            oninput="app.setHomeSearch(this.value)"
+            class="flex-1 px-3.5 py-2 rounded-xl bg-[#140e0b] border border-amber-500/25 text-amber-100 placeholder-amber-200/40 text-xs sm:text-sm focus:outline-none focus:border-amber-400"
+          />
+          <button
+            type="button"
+            onclick="app.resetHomeFilters()"
+            class="px-3.5 py-2 rounded-xl bg-[#241812] hover:bg-[#332219] border border-amber-500/20 text-xs text-amber-200/80 transition cursor-pointer shrink-0"
+          >
+            Сбросить
+          </button>
+        </div>
+        <div id="home-tag-filters" class="flex flex-wrap gap-1.5"></div>
+      </div>
+
       <div id="quizzes-grid" class="grid grid-cols-1 md:grid-cols-2 gap-5"></div>
     </section>
 
@@ -296,14 +460,34 @@
           <span>← Вернуться ко всем интерактивам</span>
         </button>
 
-        <button
-          type="button"
-          onclick="app.copyQuizLink()"
-          class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 text-xs sm:text-sm text-amber-300 transition cursor-pointer"
-        >
-          <span>Скопировать ссылку</span>
-          <span>🔗</span>
-        </button>
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            id="lobby-edit-owner-btn"
+            type="button"
+            onclick="app.openEditOwnedQuiz()"
+            class="hidden inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-xs sm:text-sm text-emerald-300 font-semibold transition cursor-pointer"
+          >
+            <span>✏️ Редактировать свой интерактив</span>
+          </button>
+
+          <button
+            type="button"
+            onclick="app.shareQuizTelegram()"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-400/30 text-xs sm:text-sm text-sky-300 transition cursor-pointer"
+          >
+            <span>Поделиться в Telegram</span>
+            <span>✈️</span>
+          </button>
+
+          <button
+            type="button"
+            onclick="app.copyQuizLink()"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 text-xs sm:text-sm text-amber-300 transition cursor-pointer"
+          >
+            <span>Скопировать ссылку</span>
+            <span>🔗</span>
+          </button>
+        </div>
       </div>
 
       <div class="cozy-card rounded-3xl p-6 sm:p-8 space-y-4">
@@ -313,6 +497,32 @@
         </div>
         <h2 id="lobby-title" class="font-serif text-3xl font-bold text-amber-100"></h2>
         <div id="lobby-desc" class="text-sm text-amber-200/75"></div>
+
+        <!-- Выбор режима игры: Без спешки или На скорость -->
+        <div class="pt-2 space-y-2">
+          <span class="block text-xs text-amber-200/70">Выберите режим прохождения:</span>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-xl">
+            <button
+              id="mode-btn-relaxed"
+              type="button"
+              onclick="app.setPlayMode('relaxed')"
+              class="p-3 rounded-2xl bg-amber-500/25 border-2 border-amber-400 text-left transition cursor-pointer"
+            >
+              <div class="text-sm font-bold text-amber-200">☕ Без спешки</div>
+              <div class="text-[11px] text-amber-200/70 mt-0.5">Уютный темп без таймера</div>
+            </button>
+            <button
+              id="mode-btn-speed"
+              type="button"
+              onclick="app.setPlayMode('speed')"
+              class="p-3 rounded-2xl bg-stone-900/80 border border-amber-500/20 hover:border-amber-400/50 text-left transition cursor-pointer"
+            >
+              <div class="text-sm font-bold text-sky-300">⚡ На скорость</div>
+              <div class="text-[11px] text-amber-200/70 mt-0.5">Учёт времени прохождения в рейтинге</div>
+            </button>
+          </div>
+        </div>
+
         <div class="pt-2 flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -339,9 +549,12 @@
 
     <section id="view-quiz" class="hidden space-y-6">
       <div class="cozy-card rounded-3xl p-5 sm:p-6 space-y-4">
-        <div class="flex items-center justify-between text-xs sm:text-sm text-amber-200/80">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm text-amber-200/80">
           <span id="quiz-progress-text" class="font-semibold text-amber-300"></span>
-          <span id="quiz-score-live" class="px-3 py-1 rounded-xl bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 font-bold"></span>
+          <div class="flex items-center gap-2">
+            <span id="quiz-timer-live" class="hidden px-3 py-1 rounded-xl bg-sky-950/85 border border-sky-400/35 text-sky-300 font-mono font-bold">⏱️ 0.0с</span>
+            <span id="quiz-score-live" class="px-3 py-1 rounded-xl bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 font-bold"></span>
+          </div>
         </div>
 
         <h2 id="question-text" class="font-serif text-xl sm:text-2xl font-bold text-amber-100"></h2>

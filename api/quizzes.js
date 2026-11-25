@@ -1,172 +1,204 @@
-const QUIZZES_KEY = 'interactive_site:quizzes:v1';
-const MAX_QUIZZES = 100;
+const crypto = require('crypto');
+const { getData, setData, getStorageStatus, verifyAdminPasscode } = require('./_storage');
 
-function cleanEnvValue(val) {
-  if (typeof val !== 'string') return '';
-  let trimmed = val.trim();
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    trimmed = trimmed.slice(1, -1).trim();
-  }
-  return trimmed;
+function hashToken(token) {
+  return crypto.createHash('sha256').update(String(token)).digest('hex');
 }
 
-function getRedisConfig() {
-  const url = cleanEnvValue(process.env.UPSTASH_REDIS_REST_URL);
-  const token = cleanEnvValue(process.env.UPSTASH_REDIS_REST_TOKEN);
-  if (!url || !token) return null;
-  return { url: url.replace(/\/+$/, ''), token };
-}
+function sanitizeQuizPayload(rawQuiz, existingQuiz = null) {
+  const title = String(rawQuiz.title || '').trim().slice(0, 120);
+  const badge = String(rawQuiz.badge || '🍂 Осенний вечер').trim().slice(0, 50);
+  const description = String(rawQuiz.description || '').trim().slice(0, 400);
+  const author = String(rawQuiz.author || (existingQuiz && existingQuiz.author) || 'Iakov').trim().slice(0, 40);
+  const timerSeconds = Math.max(0, Math.min(180, Number(rawQuiz.timerSeconds) || 0));
 
-function getAdminPasscode() {
-  return cleanEnvValue(process.env.ADMIN_PASSCODE);
-}
-
-async function upstashPipeline(commands, config) {
-  const response = await fetch(`${config.url}/pipeline`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${config.token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(commands),
-  });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`Upstash HTTP ${response.status}: ${text.slice(0, 160)}`);
+  if (!title || !description) {
+    return { error: 'Заполните название и описание интерактива' };
   }
 
-  return response.json();
-}
-
-function sanitizeText(value, maxLen) {
-  if (typeof value !== 'string') return '';
-  return value
-    .replace(/[\u0000-\u001F<>]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, maxLen);
-}
-
-function parseBody(req) {
-  if (!req.body) return {};
-  if (typeof req.body === 'string') {
-    try {
-      return JSON.parse(req.body);
-    } catch {
-      return {};
-    }
-  }
-  return req.body;
-}
-
-function normalizeQuiz(raw) {
-  if (!raw || typeof raw !== 'object') return null;
-  const title = sanitizeText(raw.title, 120);
-  const badge = sanitizeText(raw.badge, 40) || 'Интерактив';
-  const description = sanitizeText(raw.description, 400);
-  const idRaw = sanitizeText(raw.id, 64).replace(/[^a-zA-Z0-9_-]/g, '_');
-  const id = idRaw || `quiz-${Date.now()}`;
-
-  if (!title || !Array.isArray(raw.questions) || raw.questions.length === 0) {
-    return null;
+  const rawQuestions = Array.isArray(rawQuiz.questions) ? rawQuiz.questions : [];
+  if (rawQuestions.length < 3 || rawQuestions.length > 20) {
+    return { error: 'Количество вопросов должно быть от 3 до 20' };
   }
 
   const questions = [];
-  for (const item of raw.questions.slice(0, 30)) {
-    if (!item || typeof item !== 'object') continue;
-    const q = sanitizeText(item.q, 240);
-    const opts = Array.isArray(item.options)
-      ? item.options.slice(0, 4).map((o) => sanitizeText(o, 120))
-      : [];
-    const correctNum = Number(item.correct);
-    const correct = Number.isInteger(correctNum) && correctNum >= 0 && correctNum < opts.length
-      ? correctNum
-      : 0;
+  for (let i = 0; i < rawQuestions.length; i++) {
+    const item = rawQuestions[i] || {};
+    const q = String(item.q || '').trim().slice(0, 240);
+    const opts = Array.isArray(item.options) ? item.options.map(o => String(o || '').trim().slice(0, 120)) : [];
+    const correct = Number(item.correct);
 
-    if (q && opts.length >= 2 && opts.every(Boolean)) {
-      questions.push({ q, options: opts, correct });
+    if (!q || opts.length !== 4 || opts.some(o => !o) || ![0, 1, 2, 3].includes(correct)) {
+      return { error: `Проверьте заполнение вопроса #${i + 1}` };
     }
+    questions.push({ q, options: opts, correct });
   }
 
-  if (questions.length === 0) return null;
-  return { id, title, badge, description, questions };
+  return {
+    quiz: {
+      id: existingQuiz ? existingQuiz.id : (String(rawQuiz.id || '').trim() || `quiz-${Date.now()}`),
+      title,
+      badge,
+      description,
+      author,
+      timerSeconds,
+      hidden: existingQuiz ? Boolean(existingQuiz.hidden) : false,
+      createdAt: existingQuiz ? existingQuiz.createdAt : (rawQuiz.createdAt || new Date().toISOString()),
+      updatedAt: new Date().toISOString(),
+      inviteCode: existingQuiz ? (existingQuiz.inviteCode || null) : (rawQuiz.inviteCode || null),
+      ownerTokenHash: existingQuiz ? (existingQuiz.ownerTokenHash || null) : null,
+      questions
+    }
+  };
 }
 
-function parseQuizzesFromRedis(rawValue) {
-  if (!rawValue) return [];
-  let parsed = rawValue;
-  if (typeof rawValue === 'string') {
-    try {
-      parsed = JSON.parse(rawValue);
-    } catch {
-      return [];
-    }
-  }
-  if (!Array.isArray(parsed)) return [];
-  return parsed.map(normalizeQuiz).filter(Boolean);
+function stripSecrets(quiz) {
+  const { ownerTokenHash, ...publicFields } = quiz;
+  return publicFields;
 }
 
-export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Allow', 'GET, POST, OPTIONS');
-    return res.status(204).end();
-  }
+module.exports = async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
 
-  const redis = getRedisConfig();
-  if (!redis) {
-    return res.status(500).json({
-      error: 'Upstash Redis не настроен (проверьте UPSTASH_REDIS_REST_URL и UPSTASH_REDIS_REST_TOKEN)',
+  if (req.method === 'GET') {
+    const quizzes = await getData('quizzes', []);
+    const includeHidden = req.query && req.query.includeHidden === '1' && verifyAdminPasscode(req.query.passcode);
+    const filtered = includeHidden ? quizzes : quizzes.filter(q => !q.hidden);
+    return res.status(200).json({
+      quizzes: filtered.map(stripSecrets),
+      storage: getStorageStatus()
     });
   }
 
-  if (req.method === 'GET') {
-    try {
-      const data = await upstashPipeline([['GET', QUIZZES_KEY]], redis);
-      const quizzes = parseQuizzesFromRedis(data?.[0]?.result);
-      return res.status(200).json({ quizzes });
-    } catch {
-      return res.status(502).json({ error: 'Не удалось загрузить квизы' });
-    }
-  }
+  const body = req.body || {};
 
+  // CREATE NEW QUIZ (Admin OR Invite Owner)
   if (req.method === 'POST') {
-    const adminPasscode = getAdminPasscode();
-    const body = parseBody(req);
-    const providedPasscode = cleanEnvValue(body.passcode || req.headers?.['x-admin-passcode'] || '');
+    const isAdmin = verifyAdminPasscode(body.passcode);
+    const inviteCode = String(body.inviteCode || '').trim().toUpperCase();
+    const ownerToken = String(body.ownerToken || '').trim();
 
-    if (!adminPasscode) {
-      return res.status(500).json({ error: 'Не задан ADMIN_PASSCODE на сервере' });
+    let matchedInviteIdx = -1;
+    let invites = [];
+
+    if (!isAdmin) {
+      if (!inviteCode || !ownerToken) {
+        return res.status(401).json({ error: 'Нужен пароль админа или активированный инвайт-код' });
+      }
+      invites = await getData('invites', []);
+      matchedInviteIdx = invites.findIndex(inv => inv.code === inviteCode);
+      if (matchedInviteIdx === -1) {
+        return res.status(403).json({ error: 'Инвайт-код не найден' });
+      }
+      const inv = invites[matchedInviteIdx];
+      if (inv.status === 'completed' || inv.quizId) {
+        return res.status(403).json({ error: 'По этому инвайт-коду уже создан интерактив (лимит: 1 шт.)' });
+      }
+      if (inv.status !== 'redeemed' || inv.ownerTokenHash !== hashToken(ownerToken)) {
+        return res.status(403).json({ error: 'Недействительный токен владельца для этого кода' });
+      }
     }
-    if (!providedPasscode || providedPasscode !== adminPasscode) {
-      return res.status(401).json({ error: 'Неверный код администратора' });
+
+    const parsed = sanitizeQuizPayload(body.quiz || {});
+    if (parsed.error) {
+      return res.status(400).json({ error: parsed.error });
     }
 
-    const newQuiz = normalizeQuiz(body.quiz || body);
-    if (!newQuiz) {
-      return res.status(400).json({ error: 'Заполните название, вопросы и варианты ответа' });
+    const newQuiz = parsed.quiz;
+    if (!isAdmin) {
+      newQuiz.inviteCode = inviteCode;
+      newQuiz.ownerTokenHash = hashToken(ownerToken);
     }
 
-    try {
-      const existingRes = await upstashPipeline([['GET', QUIZZES_KEY]], redis);
-      const currentList = parseQuizzesFromRedis(existingRes?.[0]?.result);
-      const filtered = currentList.filter((q) => q.id !== newQuiz.id);
-      const updatedList = [newQuiz, ...filtered].slice(0, MAX_QUIZZES);
+    const quizzes = await getData('quizzes', []);
+    quizzes.unshift(newQuiz);
+    await setData('quizzes', quizzes);
 
-      await upstashPipeline(
-        [['SET', QUIZZES_KEY, JSON.stringify(updatedList)]],
-        redis
-      );
-
-      return res.status(200).json({ ok: true, quiz: newQuiz, quizzes: updatedList });
-    } catch {
-      return res.status(502).json({ error: 'Не удалось сохранить квиз в базе' });
+    if (!isAdmin && matchedInviteIdx !== -1) {
+      invites[matchedInviteIdx].status = 'completed';
+      invites[matchedInviteIdx].quizId = newQuiz.id;
+      invites[matchedInviteIdx].quizTitle = newQuiz.title;
+      await setData('invites', invites);
     }
+
+    return res.status(200).json({
+      ok: true,
+      quiz: stripSecrets(newQuiz),
+      quizzes: quizzes.filter(q => !q.hidden).map(stripSecrets)
+    });
   }
 
-  res.setHeader('Allow', 'GET, POST, OPTIONS');
-  return res.status(405).json({ error: 'Метод не поддерживается' });
-}
+  // UPDATE QUIZ (Admin OR Owner with valid ownerToken)
+  if (req.method === 'PUT') {
+    const isAdmin = verifyAdminPasscode(body.passcode);
+    const ownerToken = String(body.ownerToken || '').trim();
+    const rawQuiz = body.quiz || {};
+    const targetId = String(rawQuiz.id || body.quizId || '').trim();
+
+    if (!targetId) {
+      return res.status(400).json({ error: 'Не указан ID интерактива' });
+    }
+
+    const quizzes = await getData('quizzes', []);
+    const idx = quizzes.findIndex(q => q.id === targetId);
+    if (idx === -1) {
+      return res.status(404).json({ error: 'Интерактив не найден' });
+    }
+
+    const existing = quizzes[idx];
+    const isOwner = Boolean(existing.ownerTokenHash && ownerToken && existing.ownerTokenHash === hashToken(ownerToken));
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ error: 'Редактировать интерактив может только его владелец или администратор' });
+    }
+
+    // Admin toggle hidden/archive shortcut
+    if (isAdmin && typeof body.hidden === 'boolean' && !body.quiz) {
+      quizzes[idx].hidden = body.hidden;
+      quizzes[idx].updatedAt = new Date().toISOString();
+      await setData('quizzes', quizzes);
+      return res.status(200).json({
+        ok: true,
+        quizzes: quizzes.map(stripSecrets)
+      });
+    }
+
+    const parsed = sanitizeQuizPayload(rawQuiz, existing);
+    if (parsed.error) {
+      return res.status(400).json({ error: parsed.error });
+    }
+
+    quizzes[idx] = parsed.quiz;
+    await setData('quizzes', quizzes);
+
+    return res.status(200).json({
+      ok: true,
+      quiz: stripSecrets(parsed.quiz),
+      quizzes: (isAdmin ? quizzes : quizzes.filter(q => !q.hidden)).map(stripSecrets)
+    });
+  }
+
+  // DELETE QUIZ (Admin only)
+  if (req.method === 'DELETE') {
+    if (!verifyAdminPasscode(body.passcode)) {
+      return res.status(401).json({ error: 'Неверный пароль администратора' });
+    }
+    const targetId = String(body.quizId || '').trim();
+    const quizzes = await getData('quizzes', []);
+    const filtered = quizzes.filter(q => q.id !== targetId);
+    await setData('quizzes', filtered);
+
+    const boards = await getData('leaderboards', {});
+    if (boards[targetId]) {
+      delete boards[targetId];
+      await setData('leaderboards', boards);
+    }
+
+    return res.status(200).json({
+      ok: true,
+      quizzes: filtered.map(stripSecrets)
+    });
+  }
+
+  return res.status(405).json({ error: 'Method Not Allowed' });
+};

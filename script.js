@@ -10,6 +10,14 @@ const app = {
     currentQuestionIndex: 0,
     currentScore: 0,
     routeHistory: [],
+    playMode: 'relaxed', // 'relaxed' | 'speed'
+    quizStartTimeMs: null,
+    quizElapsedSec: 0,
+    timerIntervalId: null,
+    homeSearch: '',
+    homeTagFilter: 'ALL',
+    ownerSession: null, // { code, ownerToken, ownedQuizId }
+    editingQuizId: null,
     isAdminUnlocked: false,
     adminPasscode: '',
     secretTapCount: 0,
@@ -115,33 +123,38 @@ const app = {
       `;
     }
 
-    const waypoints = isMobile
-      ? [
-          { main: { x: 210, y: 505 }, detour: { x: 210, y: 505 } },
-          { main: { x: 155, y: 460 }, detour: { x: 315, y: 465 } },
-          { main: { x: 255, y: 415 }, detour: { x: 105, y: 420 } },
-          { main: { x: 150, y: 370 }, detour: { x: 320, y: 375 } },
-          { main: { x: 260, y: 325 }, detour: { x: 100, y: 330 } },
-          { main: { x: 155, y: 280 }, detour: { x: 315, y: 285 } },
-          { main: { x: 255, y: 235 }, detour: { x: 105, y: 240 } },
-          { main: { x: 150, y: 190 }, detour: { x: 320, y: 195 } },
-          { main: { x: 255, y: 145 }, detour: { x: 110, y: 150 } },
-          { main: { x: 180, y: 110 }, detour: { x: 295, y: 115 } },
-          { main: { x: 210, y: 75  }, detour: { x: 210, y: 75  } }
-        ]
-      : [
-          { main: { x: 85,   y: 360 }, detour: { x: 85,   y: 360 } },
-          { main: { x: 185,  y: 265 }, detour: { x: 175,  y: 405 } },
-          { main: { x: 295,  y: 195 }, detour: { x: 285,  y: 345 } },
-          { main: { x: 405,  y: 260 }, detour: { x: 395,  y: 410 } },
-          { main: { x: 515,  y: 180 }, detour: { x: 505,  y: 335 } },
-          { main: { x: 625,  y: 140 }, detour: { x: 615,  y: 305 } },
-          { main: { x: 735,  y: 220 }, detour: { x: 725,  y: 380 } },
-          { main: { x: 845,  y: 155 }, detour: { x: 835,  y: 315 } },
-          { main: { x: 955,  y: 115 }, detour: { x: 945,  y: 270 } },
-          { main: { x: 1050, y: 160 }, detour: { x: 1040, y: 300 } },
-          { main: { x: 1130, y: 105 }, detour: { x: 1130, y: 105 } }
-        ];
+    const waypoints = (() => {
+      const pts = [];
+      for (let s = 0; s <= total; s++) {
+        const t = total > 0 ? s / total : 0;
+        if (isMobile) {
+          if (s === 0) {
+            pts.push({ main: { x: 210, y: 505 }, detour: { x: 210, y: 505 } });
+          } else if (s === total) {
+            pts.push({ main: { x: 210, y: 75 }, detour: { x: 210, y: 75 } });
+          } else {
+            const y = Math.round(505 - t * 430);
+            const zig = s % 2 === 1 ? -55 : 50;
+            const mainX = 210 + zig;
+            const detourX = s % 2 === 1 ? 318 : 102;
+            pts.push({ main: { x: mainX, y }, detour: { x: detourX, y: y + 5 } });
+          }
+        } else {
+          if (s === 0) {
+            pts.push({ main: { x: 85, y: 360 }, detour: { x: 85, y: 360 } });
+          } else if (s === total) {
+            pts.push({ main: { x: 1130, y: 105 }, detour: { x: 1130, y: 105 } });
+          } else {
+            const x = Math.round(85 + t * 1045);
+            const wave = Math.sin(t * Math.PI * 3.2) * 42;
+            const mainY = Math.round(335 - t * 215 - wave);
+            const detourY = Math.min(415, mainY + 145);
+            pts.push({ main: { x, y: mainY }, detour: { x: x - 10, y: detourY } });
+          }
+        }
+      }
+      return pts;
+    })();
 
     const getCoords = (step, lane) => {
       const safeIdx = Math.min(step, waypoints.length - 1);
@@ -301,11 +314,394 @@ const app = {
     }
   },
 
+  loadOwnerSession() {
+    try {
+      const raw = localStorage.getItem('cozy_owner_session');
+      this.state.ownerSession = raw ? JSON.parse(raw) : null;
+    } catch {
+      this.state.ownerSession = null;
+    }
+    this.updateInviteNavButton();
+  },
+
+  saveOwnerSession(session) {
+    this.state.ownerSession = session;
+    if (session) {
+      localStorage.setItem('cozy_owner_session', JSON.stringify(session));
+    } else {
+      localStorage.removeItem('cozy_owner_session');
+    }
+    this.updateInviteNavButton();
+  },
+
+  updateInviteNavButton() {
+    const btn = document.getElementById('nav-invite-action-btn');
+    if (!btn) return;
+    const sess = this.state.ownerSession;
+    if (sess && sess.ownerToken) {
+      if (sess.ownedQuizId) {
+        btn.textContent = '✏️ Мой интерактив';
+      } else {
+        btn.textContent = '✨ Создать свой квиз';
+      }
+    } else {
+      btn.textContent = '🎟️ Ввести код';
+    }
+  },
+
+  handleInviteNavClick() {
+    const sess = this.state.ownerSession;
+    if (sess && sess.ownerToken) {
+      if (sess.ownedQuizId) {
+        const ownedQuiz = this.state.quizzes.find(q => q.id === sess.ownedQuizId);
+        if (ownedQuiz) {
+          this.openLobby(ownedQuiz.id);
+          this.openEditOwnedQuiz();
+          return;
+        }
+      } else {
+        this.openCreateOwnedQuiz();
+        return;
+      }
+    }
+    this.openInviteModal();
+  },
+
+  openInviteModal() {
+    const modal = document.getElementById('invite-modal');
+    const input = document.getElementById('invite-code-input');
+    if (!modal || !input) return;
+    input.value = '';
+    modal.classList.remove('hidden');
+    setTimeout(() => input.focus(), 80);
+  },
+
+  closeInviteModal() {
+    const modal = document.getElementById('invite-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  async redeemInviteCode(codeInput) {
+    const code = String(codeInput || '').trim().toUpperCase();
+    if (!code) return;
+
+    const btn = document.getElementById('invite-submit-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Проверяем...';
+    }
+
+    try {
+      const response = await fetch('/api/invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'redeem', code })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ownerToken) {
+        this.showToast(data.error || 'Не удалось активировать код', '🔒');
+        return;
+      }
+
+      this.saveOwnerSession({
+        code: data.code || code,
+        ownerToken: data.ownerToken,
+        ownedQuizId: null
+      });
+
+      this.closeInviteModal();
+      this.showToast('Код принят! Теперь можно создать 1 свой интерактив', '🎟️');
+      this.openCreateOwnedQuiz();
+    } catch {
+      this.showToast('Ошибка сети при проверке кода', '⚠️');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Активировать код';
+      }
+    }
+  },
+
+  openCreateOwnedQuiz() {
+    const sess = this.state.ownerSession;
+    if (!sess || !sess.ownerToken) {
+      this.openInviteModal();
+      return;
+    }
+    if (sess.ownedQuizId) {
+      this.showToast('Лимит кода: 1 интерактив. Вы можете редактировать уже созданный!', 'ℹ️');
+      this.openEditOwnedQuiz();
+      return;
+    }
+
+    this.state.editingQuizId = null;
+    document.getElementById('creator-mode-badge').textContent = `🎟️ Код ${sess.code} • Создание (1 из 1)`;
+    document.getElementById('creator-modal-title').textContent = 'Создать свой интерактив';
+    document.getElementById('owner-quiz-save-btn').textContent = 'Опубликовать интерактив ✨';
+    document.getElementById('owner-quiz-form').reset();
+    document.getElementById('owner-quiz-author').value = this.state.username || '';
+    document.getElementById('owner-quiz-count').value = '10';
+    document.getElementById('owner-quiz-count').disabled = false;
+    this.renderOwnerQuestionInputs();
+    document.getElementById('creator-modal').classList.remove('hidden');
+  },
+
+  openEditOwnedQuiz() {
+    const sess = this.state.ownerSession;
+    const quiz = this.state.activeQuiz || (sess && this.state.quizzes.find(q => q.id === sess.ownedQuizId));
+    if (!sess || !sess.ownerToken || !quiz || sess.ownedQuizId !== quiz.id) {
+      this.showToast('Редактировать интерактив может только его владелец', '🔒');
+      return;
+    }
+
+    this.state.editingQuizId = quiz.id;
+    document.getElementById('creator-mode-badge').textContent = `✏️ Владелец (${sess.code})`;
+    document.getElementById('creator-modal-title').textContent = 'Редактировать свой интерактив';
+    document.getElementById('owner-quiz-save-btn').textContent = 'Сохранить изменения 💾';
+
+    document.getElementById('owner-quiz-title').value = quiz.title || '';
+    document.getElementById('owner-quiz-badge').value = quiz.badge || '🍂 Осенний вечер';
+    document.getElementById('owner-quiz-author').value = quiz.author || '';
+    document.getElementById('owner-quiz-desc').value = quiz.description || '';
+
+    const countSelect = document.getElementById('owner-quiz-count');
+    const qLen = Array.isArray(quiz.questions) ? quiz.questions.length : 10;
+    if (![5, 8, 10, 12, 15].includes(qLen)) {
+      const opt = document.createElement('option');
+      opt.value = String(qLen);
+      opt.textContent = `${qLen} вопросов`;
+      countSelect.appendChild(opt);
+    }
+    countSelect.value = String(qLen);
+    this.renderOwnerQuestionInputs(quiz.questions || []);
+    document.getElementById('creator-modal').classList.remove('hidden');
+  },
+
+  closeCreatorModal() {
+    const modal = document.getElementById('creator-modal');
+    if (modal) modal.classList.add('hidden');
+    this.state.editingQuizId = null;
+  },
+
+  renderOwnerQuestionInputs(prefillQuestions = null) {
+    const container = document.getElementById('owner-questions-list');
+    const countSelect = document.getElementById('owner-quiz-count');
+    if (!container || !countSelect) return;
+
+    const count = Math.max(3, Math.min(20, parseInt(countSelect.value, 10) || 10));
+    let html = '';
+
+    for (let i = 0; i < count; i++) {
+      const existing = Array.isArray(prefillQuestions) && prefillQuestions[i] ? prefillQuestions[i] : null;
+      const qVal = existing ? this.escapeHtml(existing.q) : '';
+      const opts = existing && Array.isArray(existing.options) ? existing.options : ['', '', '', ''];
+      const correct = existing ? Number(existing.correct) : 0;
+
+      html += `
+        <div class="p-4 rounded-2xl bg-stone-900/90 border border-amber-500/20 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-amber-400">Вопрос #${i + 1}</span>
+            <label class="text-xs text-amber-200/80 flex items-center gap-1.5">
+              Верный вариант:
+              <select id="owner-q-correct-${i}" class="bg-stone-800 border border-amber-500/30 rounded px-2 py-0.5 text-amber-300">
+                <option value="0" ${correct === 0 ? 'selected' : ''}>A</option>
+                <option value="1" ${correct === 1 ? 'selected' : ''}>B</option>
+                <option value="2" ${correct === 2 ? 'selected' : ''}>C</option>
+                <option value="3" ${correct === 3 ? 'selected' : ''}>D</option>
+              </select>
+            </label>
+          </div>
+          <input type="text" id="owner-q-text-${i}" value="${qVal}" required maxlength="240" placeholder="Текст вопроса ${i + 1}..." class="w-full px-3 py-2 rounded-xl bg-stone-950 border border-amber-500/20 text-amber-100 text-xs sm:text-sm">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input type="text" id="owner-q-${i}-opt-0" value="${this.escapeHtml(opts[0] || '')}" required maxlength="120" placeholder="Вариант A" class="px-3 py-1.5 rounded-lg bg-stone-950 border border-amber-500/15 text-amber-100 text-xs">
+            <input type="text" id="owner-q-${i}-opt-1" value="${this.escapeHtml(opts[1] || '')}" required maxlength="120" placeholder="Вариант B" class="px-3 py-1.5 rounded-lg bg-stone-950 border border-amber-500/15 text-amber-100 text-xs">
+            <input type="text" id="owner-q-${i}-opt-2" value="${this.escapeHtml(opts[2] || '')}" required maxlength="120" placeholder="Вариант C" class="px-3 py-1.5 rounded-lg bg-stone-950 border border-amber-500/15 text-amber-100 text-xs">
+            <input type="text" id="owner-q-${i}-opt-3" value="${this.escapeHtml(opts[3] || '')}" required maxlength="120" placeholder="Вариант D" class="px-3 py-1.5 rounded-lg bg-stone-950 border border-amber-500/15 text-amber-100 text-xs">
+          </div>
+        </div>
+      `;
+    }
+    container.innerHTML = html;
+  },
+
+  async handleSaveOwnedQuiz() {
+    const sess = this.state.ownerSession;
+    if (!sess || !sess.ownerToken) {
+      this.showToast('Сессия владельца не найдена', '🔒');
+      return;
+    }
+
+    const title = document.getElementById('owner-quiz-title').value.trim();
+    const badge = document.getElementById('owner-quiz-badge').value;
+    const author = (document.getElementById('owner-quiz-author').value.trim() || this.state.username || 'Гость').slice(0, 40);
+    const description = document.getElementById('owner-quiz-desc').value.trim();
+    const count = parseInt(document.getElementById('owner-quiz-count').value, 10) || 10;
+
+    const questions = [];
+    for (let i = 0; i < count; i++) {
+      questions.push({
+        q: document.getElementById(`owner-q-text-${i}`).value.trim(),
+        options: [
+          document.getElementById(`owner-q-${i}-opt-0`).value.trim(),
+          document.getElementById(`owner-q-${i}-opt-1`).value.trim(),
+          document.getElementById(`owner-q-${i}-opt-2`).value.trim(),
+          document.getElementById(`owner-q-${i}-opt-3`).value.trim()
+        ],
+        correct: parseInt(document.getElementById(`owner-q-correct-${i}`).value, 10)
+      });
+    }
+
+    const saveBtn = document.getElementById('owner-quiz-save-btn');
+    saveBtn.disabled = true;
+
+    const isEditing = Boolean(this.state.editingQuizId);
+
+    try {
+      const response = await fetch('/api/quizzes', {
+        method: isEditing ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          isEditing
+            ? {
+                ownerToken: sess.ownerToken,
+                quiz: {
+                  id: this.state.editingQuizId,
+                  title,
+                  badge,
+                  author,
+                  description,
+                  questions
+                }
+              }
+            : {
+                inviteCode: sess.code,
+                ownerToken: sess.ownerToken,
+                quiz: {
+                  title,
+                  badge,
+                  author,
+                  description,
+                  questions
+                }
+              }
+        )
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.quiz) {
+        this.showToast(data.error || 'Не удалось сохранить интерактив', '⚠️');
+        return;
+      }
+
+      if (Array.isArray(data.quizzes)) {
+        this.state.quizzes = data.quizzes;
+        this.saveQuizzes();
+      }
+
+      if (!isEditing) {
+        this.saveOwnerSession({
+          ...sess,
+          ownedQuizId: data.quiz.id
+        });
+      }
+
+      this.closeCreatorModal();
+      this.openLobby(data.quiz.id);
+      this.showToast(
+        isEditing ? 'Изменения в вашем интерактиве сохранены!' : 'Ваш интерактив создан! Теперь можно редактировать только его',
+        '🎄'
+      );
+    } catch {
+      this.showToast('Ошибка сети при сохранении', '⚠️');
+    } finally {
+      saveBtn.disabled = false;
+    }
+  },
+
+  shareQuizTelegram(quizId = null) {
+    const quiz = quizId ? this.state.quizzes.find(q => q.id === quizId) : this.state.activeQuiz;
+    if (!quiz) return;
+    const url = this.getQuizUrl(quiz.id);
+    const text = `🍂 Пройди интерактив «${quiz.title}» и построй свой маршрут!`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+    window.open(shareUrl, '_blank', 'noopener,noreferrer');
+  },
+
+  setHomeSearch(val) {
+    this.state.homeSearch = String(val || '');
+    this.renderHome();
+  },
+
+  setHomeTagFilter(tag) {
+    this.state.homeTagFilter = tag || 'ALL';
+    this.renderHome();
+  },
+
+  resetHomeFilters() {
+    this.state.homeSearch = '';
+    this.state.homeTagFilter = 'ALL';
+    const input = document.getElementById('home-search-input');
+    if (input) input.value = '';
+    this.renderHome();
+  },
+
+  setPlayMode(mode) {
+    this.state.playMode = mode === 'speed' ? 'speed' : 'relaxed';
+    const relaxedBtn = document.getElementById('mode-btn-relaxed');
+    const speedBtn = document.getElementById('mode-btn-speed');
+    if (!relaxedBtn || !speedBtn) return;
+
+    if (this.state.playMode === 'relaxed') {
+      relaxedBtn.className = 'p-3 rounded-2xl bg-amber-500/25 border-2 border-amber-400 text-left transition cursor-pointer';
+      speedBtn.className = 'p-3 rounded-2xl bg-stone-900/80 border border-amber-500/20 hover:border-amber-400/50 text-left transition cursor-pointer';
+    } else {
+      relaxedBtn.className = 'p-3 rounded-2xl bg-stone-900/80 border border-amber-500/20 hover:border-amber-400/50 text-left transition cursor-pointer';
+      speedBtn.className = 'p-3 rounded-2xl bg-sky-500/20 border-2 border-sky-400 text-left transition cursor-pointer';
+    }
+  },
+
+  startQuizTimer() {
+    this.stopQuizTimer();
+    const timerEl = document.getElementById('quiz-timer-live');
+    if (this.state.playMode !== 'speed') {
+      if (timerEl) timerEl.classList.add('hidden');
+      this.state.quizElapsedSec = 0;
+      return;
+    }
+
+    this.state.quizStartTimeMs = performance.now();
+    this.state.quizElapsedSec = 0;
+    if (timerEl) {
+      timerEl.textContent = '⏱️ 0.0с';
+      timerEl.classList.remove('hidden');
+    }
+
+    this.state.timerIntervalId = setInterval(() => {
+      const sec = (performance.now() - this.state.quizStartTimeMs) / 1000;
+      this.state.quizElapsedSec = Math.round(sec * 10) / 10;
+      if (timerEl) {
+        timerEl.textContent = `⏱️ ${this.state.quizElapsedSec.toFixed(1)}с`;
+      }
+    }, 100);
+  },
+
+  stopQuizTimer() {
+    if (this.state.timerIntervalId) {
+      clearInterval(this.state.timerIntervalId);
+      this.state.timerIntervalId = null;
+    }
+    if (this.state.playMode === 'speed' && this.state.quizStartTimeMs) {
+      const sec = (performance.now() - this.state.quizStartTimeMs) / 1000;
+      this.state.quizElapsedSec = Math.round(sec * 10) / 10;
+    }
+  },
+
   init() {
     this.state.username = '';
     this.updateUserDisplay();
     this.createParticles();
     this.loadData();
+    this.loadOwnerSession();
     this.bindEvents();
 
     if (window.location.hash === '#admin') {
@@ -486,12 +882,12 @@ const app = {
     }
   },
 
-  async submitScoreToGlobal(quizId, name, score, total, date) {
+  async submitScoreToGlobal(quizId, name, score, total, date, mode = 'relaxed', durationSec = null) {
     try {
       const response = await fetch('/api/leaderboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quizId, name, score, total, date })
+        body: JSON.stringify({ quizId, name, score, total, date, mode, durationSec })
       });
 
       const data = await response.json().catch(() => ({}));
@@ -595,6 +991,23 @@ const app = {
       await this.sendGiftViaResend();
     });
 
+    const inviteForm = document.getElementById('invite-form');
+    if (inviteForm) {
+      inviteForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = document.getElementById('invite-code-input');
+        await this.redeemInviteCode(input ? input.value : '');
+      });
+    }
+
+    const ownerQuizForm = document.getElementById('owner-quiz-form');
+    if (ownerQuizForm) {
+      ownerQuizForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.handleSaveOwnedQuiz();
+      });
+    }
+
     window.addEventListener('resize', () => {
       if (!document.getElementById('view-quiz').classList.contains('hidden')) {
         this.renderJourneyMap();
@@ -646,6 +1059,7 @@ const app = {
   },
 
   showHome(options = {}) {
+    this.stopQuizTimer();
     if (!options.skipHistory) {
       this.syncUrlForHome(Boolean(options.replaceHistory));
     } else {
@@ -757,22 +1171,59 @@ const app = {
 
   renderHome() {
     const grid = document.getElementById('quizzes-grid');
+    const tagsContainer = document.getElementById('home-tag-filters');
     grid.innerHTML = '';
 
-    if (this.state.quizzes.length === 0) {
+    if (tagsContainer) {
+      const uniqueBadges = Array.from(new Set(this.state.quizzes.map(q => q.badge).filter(Boolean)));
+      const chips = ['ALL', ...uniqueBadges];
+      tagsContainer.innerHTML = chips.map(tag => {
+        const isActive = this.state.homeTagFilter === tag;
+        const label = tag === 'ALL' ? '✨ Все темы' : this.escapeHtml(tag);
+        return `
+          <button
+            type="button"
+            onclick="app.setHomeTagFilter('${this.escapeHtml(tag)}')"
+            class="px-3 py-1 rounded-full text-xs transition cursor-pointer ${
+              isActive
+                ? 'bg-amber-400 text-stone-950 font-bold'
+                : 'bg-stone-900/80 hover:bg-stone-800 border border-amber-500/20 text-amber-200/80'
+            }"
+          >
+            ${label}
+          </button>
+        `;
+      }).join('');
+    }
+
+    const searchQ = this.state.homeSearch.trim().toLowerCase();
+    const visibleQuizzes = this.state.quizzes.filter(quiz => {
+      const matchesTag = this.state.homeTagFilter === 'ALL' || quiz.badge === this.state.homeTagFilter;
+      if (!matchesTag) return false;
+      if (!searchQ) return true;
+      const meta = this.getQuizMeta(quiz);
+      const hay = `${quiz.title} ${quiz.description} ${quiz.badge} ${meta.author}`.toLowerCase();
+      return hay.includes(searchQ);
+    });
+
+    if (visibleQuizzes.length === 0) {
       grid.innerHTML = `
         <div class="col-span-full cozy-card rounded-3xl p-8 text-center">
           <div class="text-4xl mb-3">🕯️</div>
-          <h3 class="font-serif text-2xl font-bold text-amber-200 mb-2">Интерактивы скоро появятся</h3>
+          <h3 class="font-serif text-2xl font-bold text-amber-200 mb-2">
+            ${this.state.quizzes.length === 0 ? 'Интерактивы скоро появятся' : 'Ничего не найдено'}
+          </h3>
           <p class="text-amber-200/70 text-sm max-w-md mx-auto">
-            Автор ещё готовит вопросы для этого вечера. Загляни чуть позже!
+            ${this.state.quizzes.length === 0
+              ? 'Автор ещё готовит вопросы для этого вечера. Загляни чуть позже!'
+              : 'Попробуйте изменить поисковый запрос или сбросить фильтр по тегам.'}
           </p>
         </div>
       `;
       return;
     }
 
-    this.state.quizzes.forEach(quiz => {
+    visibleQuizzes.forEach(quiz => {
       const rankedBoard = this.getRankedLeaderboard(quiz.id);
       const firstPlace = rankedBoard.find(item => item.position === 1);
       const secondPlace = rankedBoard.find(item => item.position === 2);
@@ -874,6 +1325,17 @@ const app = {
       <span class="block mt-2 text-xs text-amber-200/60">✍️ Создал: <strong class="text-amber-200/90 font-medium">${this.escapeHtml(meta.author)}</strong> • 📅 ${this.escapeHtml(meta.createdAtText)}</span>
     `;
 
+    const editBtn = document.getElementById('lobby-edit-owner-btn');
+    if (editBtn) {
+      const sess = this.state.ownerSession;
+      if (sess && sess.ownerToken && sess.ownedQuizId === quiz.id) {
+        editBtn.classList.remove('hidden');
+      } else {
+        editBtn.classList.add('hidden');
+      }
+    }
+
+    this.setPlayMode(this.state.playMode || 'relaxed');
     this.renderLeaderboard(quiz.id, 'lobby-leaderboard');
     this.fetchGlobalLeaderboards(quiz.id);
     this.switchView('view-lobby');
@@ -909,7 +1371,12 @@ const app = {
               <span class="block text-[11px] text-amber-200/50">${this.escapeHtml(entry.date || 'Недавно')}</span>
             </div>
           </div>
-          <div class="text-left sm:text-right shrink-0">
+          <div class="text-left sm:text-right shrink-0 flex items-center gap-1.5">
+            ${
+              entry.mode === 'speed' && typeof entry.durationSec === 'number'
+                ? `<span class="inline-block px-2 py-1 rounded-xl bg-sky-950/90 border border-sky-500/30 text-sky-300 font-mono font-semibold text-xs whitespace-nowrap">⚡ ${entry.durationSec.toFixed(1)}с</span>`
+                : ''
+            }
             <span class="inline-block px-2.5 sm:px-3 py-1 rounded-xl bg-emerald-950/90 border border-emerald-500/30 text-emerald-300 font-bold text-xs sm:text-sm whitespace-nowrap">
               ${Number(entry.score)} / ${Number(entry.total)} верных
             </span>
@@ -930,6 +1397,7 @@ const app = {
     this.state.currentScore = 0;
     this.state.routeHistory = [{ step: 0, lane: 'main' }];
     this.switchView('view-quiz');
+    this.startQuizTimer();
     this.renderLeaderboard(this.state.activeQuiz.id, 'quiz-live-leaderboard');
     this.fetchGlobalLeaderboards(this.state.activeQuiz.id);
     this.renderJourneyMap();
@@ -1043,9 +1511,12 @@ const app = {
   },
 
   finishQuiz() {
+    this.stopQuizTimer();
     const quiz = this.state.activeQuiz;
     const score = this.state.currentScore;
     const total = quiz.questions.length;
+    const mode = this.state.playMode || 'relaxed';
+    const durationSec = mode === 'speed' ? this.state.quizElapsedSec : null;
 
     if (!this.state.leaderboards[quiz.id]) {
       this.state.leaderboards[quiz.id] = [];
@@ -1057,15 +1528,21 @@ const app = {
     const nowStr = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 
     if (existingIdx !== -1) {
-      if (score >= board[existingIdx].score) {
-        board[existingIdx] = { name: playerName, score, total, date: nowStr };
+      const prev = board[existingIdx];
+      const isBetterScore = score > prev.score;
+      const isSameFaster =
+        score === prev.score &&
+        durationSec !== null &&
+        (typeof prev.durationSec !== 'number' || durationSec < prev.durationSec);
+      if (isBetterScore || isSameFaster) {
+        board[existingIdx] = { name: playerName, score, total, date: nowStr, mode, durationSec };
       }
     } else {
-      board.push({ name: playerName, score, total, date: nowStr });
+      board.push({ name: playerName, score, total, date: nowStr, mode, durationSec });
     }
 
     this.saveLeaderboards();
-    this.submitScoreToGlobal(quiz.id, playerName, score, total, nowStr);
+    this.submitScoreToGlobal(quiz.id, playerName, score, total, nowStr, mode, durationSec);
 
     const stats = this.getRouteStats();
     document.getElementById('result-username').textContent = playerName;
