@@ -385,7 +385,9 @@ window.app = {
     this.verifyOwnerSession();
     this.fetchGlobalQuizzes();
     this.fetchGlobalLeaderboards();
-    this.openNameModal();
+    if (!this.state.username) {
+        this.openNameModal();
+    }
   }
 };
 
