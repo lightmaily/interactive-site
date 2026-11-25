@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 const MEMORY_STORE = global.__COZY_STORE__ || (global.__COZY_STORE__ = {});
 const TMP_DIR = '/tmp/cozy-interactive-store';
@@ -125,9 +125,10 @@ function verifyAdminPasscode(passcode) {
   return input.length > 0 && input === expected;
 }
 
-module.exports = {
+export {
   getData,
   setData,
   getStorageStatus,
   verifyAdminPasscode
 };
+
