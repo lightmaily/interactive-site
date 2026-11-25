@@ -151,6 +151,20 @@ Object.assign(window.app, {
     }
   },
 
+  _preserveQuestionsScroll(containerId, fn) {
+    const container = document.getElementById(containerId);
+    const modal = document.getElementById('creator-modal');
+    const prevListScroll = container ? container.scrollTop : 0;
+    const prevModalScroll = modal ? modal.scrollTop : 0;
+
+    fn();
+
+    requestAnimationFrame(() => {
+      if (container) container.scrollTop = prevListScroll;
+      if (modal && prevModalScroll > 0) modal.scrollTop = prevModalScroll;
+    });
+  },
+
   getNormalizedOwnerCount(rawVal) {
     const num = parseInt(rawVal, 10);
     return Number.isNaN(num) ? 10 : Math.max(3, Math.min(30, num));
@@ -200,7 +214,9 @@ Object.assign(window.app, {
   syncOwnerQuestionCount(val) {
     const draft = this.collectQuestionDraftFromDom('owner-q');
     this.setOwnerCountControls(this.getNormalizedOwnerCount(val));
-    this.renderOwnerQuestionInputs(draft);
+    this._preserveQuestionsScroll('owner-questions-list', () => {
+      this.renderOwnerQuestionInputs(draft);
+    });
   },
 
   stepOwnerQuestionCount(delta) {
@@ -221,12 +237,15 @@ Object.assign(window.app, {
       return;
     }
     draft.splice(qIndex, 1);
-    if (idPrefix === 'owner-q') {
-      this.setOwnerCountControls(draft.length);
-      this.renderOwnerQuestionInputs(draft);
-    } else {
-      this.renderAdminQuestionInputs(draft);
-    }
+    const listId = idPrefix === 'owner-q' ? 'owner-questions-list' : 'admin-questions-list';
+    this._preserveQuestionsScroll(listId, () => {
+      if (idPrefix === 'owner-q') {
+        this.setOwnerCountControls(draft.length);
+        this.renderOwnerQuestionInputs(draft);
+      } else {
+        this.renderAdminQuestionInputs(draft);
+      }
+    });
   },
 
   handleOwnerQuestionCountInput() {
@@ -241,7 +260,9 @@ Object.assign(window.app, {
       this.showToast('Максимум 30 вопросов', 'ℹ️');
     }
     this.setOwnerCountControls(this.getNormalizedOwnerCount(input.value));
-    this.renderOwnerQuestionInputs(draft);
+    this._preserveQuestionsScroll('owner-questions-list', () => {
+      this.renderOwnerQuestionInputs(draft);
+    });
   },
 
   selectQuestionCorrect(idPrefix, qIndex, optIndex) {
@@ -259,7 +280,7 @@ Object.assign(window.app, {
           ? 'bg-emerald-950/55 border-emerald-400/70'
           : 'bg-stone-950/90 border-amber-500/15 hover:border-amber-500/35'
       }`;
-      badgeBtn.className = `w-8 h-8 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 transition cursor-pointer ${
+      badgeBtn.className = `min-w-[2rem] h-8 px-1.5 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 transition cursor-pointer ${
         isSelected
           ? 'bg-emerald-500 text-stone-950 shadow-sm'
           : 'bg-stone-800 hover:bg-amber-500/25 text-amber-300 border border-amber-500/25'
@@ -281,8 +302,11 @@ Object.assign(window.app, {
       if (target.correct >= clamped) target.correct = clamped - 1;
     }
 
-    if (idPrefix === 'owner-q') this.renderOwnerQuestionInputs(draft);
-    else this.renderAdminQuestionInputs(draft);
+    const listId = idPrefix === 'owner-q' ? 'owner-questions-list' : 'admin-questions-list';
+    this._preserveQuestionsScroll(listId, () => {
+      if (idPrefix === 'owner-q') this.renderOwnerQuestionInputs(draft);
+      else this.renderAdminQuestionInputs(draft);
+    });
   },
 
   removeQuestionOptionAt(idPrefix, qIndex, optIndex) {
@@ -302,8 +326,11 @@ Object.assign(window.app, {
       target.correct -= 1;
     }
 
-    if (idPrefix === 'owner-q') this.renderOwnerQuestionInputs(draft);
-    else this.renderAdminQuestionInputs(draft);
+    const listId = idPrefix === 'owner-q' ? 'owner-questions-list' : 'admin-questions-list';
+    this._preserveQuestionsScroll(listId, () => {
+      if (idPrefix === 'owner-q') this.renderOwnerQuestionInputs(draft);
+      else this.renderAdminQuestionInputs(draft);
+    });
   },
 
   changeQuestionOptionCount(idPrefix, qIndex, delta) {
@@ -341,23 +368,23 @@ Object.assign(window.app, {
     }).join('');
 
     return `
-      <div class="p-4 rounded-2xl bg-stone-900/90 border border-amber-500/20 space-y-3">
+      <div class="p-3.5 sm:p-4 rounded-2xl bg-stone-900/90 border border-amber-500/20 space-y-2.5 sm:space-y-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-2">
             <span class="text-xs font-bold text-amber-400">Вопрос #${index + 1}</span>
             <span class="text-[11px] text-emerald-300/80 hidden sm:inline">• Нажми на букву слева, чтобы отметить верный</span>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-1.5 sm:gap-2">
             <div class="inline-flex items-center gap-1 bg-stone-950/90 border border-amber-500/20 rounded-lg p-0.5">
-              <span class="text-[10px] text-amber-200/60 px-1.5">Ответов:</span>
+              <span class="text-[10px] text-amber-200/60 px-1">Ответов:</span>
               ${countChipsHtml}
             </div>
-            ${totalCount > 3 ? `<button type="button" onclick="app.removeQuestionAt('${idPrefix}', ${index})" title="Удалить этот вопрос" class="px-2 py-1 rounded-lg bg-rose-950/70 hover:bg-rose-900 border border-rose-500/25 text-rose-200 text-xs cursor-pointer">🗑️</button>` : ''}
+            ${totalCount > 3 ? `<button type="button" onclick="app.removeQuestionAt('${idPrefix}', ${index})" title="Удалить этот вопрос" class="w-7 h-7 sm:w-auto sm:h-auto sm:px-2 sm:py-1 rounded-lg bg-rose-950/70 hover:bg-rose-900 border border-rose-500/25 text-rose-200 text-xs flex items-center justify-center cursor-pointer shrink-0">🗑️</button>` : ''}
           </div>
         </div>
 
         <input type="hidden" id="${idPrefix}-correct-${index}" value="${correct}">
-        <input type="text" id="${idPrefix}-text-${index}" value="${qVal}" required maxlength="${maxQ}" placeholder="Текст вопроса ${index + 1}..." class="w-full px-3.5 py-2 rounded-xl bg-stone-950 border border-amber-500/25 text-amber-100 text-xs sm:text-sm">
+        <input type="text" id="${idPrefix}-text-${index}" value="${qVal}" required maxlength="${maxQ}" placeholder="Текст вопроса ${index + 1}..." class="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-amber-500/25 text-amber-100 text-sm">
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           ${rawOpts.map((optVal, oIdx) => {
@@ -374,7 +401,7 @@ Object.assign(window.app, {
                   id="${idPrefix}-${index}-pick-${oIdx}"
                   onclick="app.selectQuestionCorrect('${idPrefix}', ${index}, ${oIdx})"
                   title="${isSelected ? 'Верный ответ' : 'Сделать верным ответом'}"
-                  class="w-8 h-8 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 transition cursor-pointer ${
+                  class="min-w-[2rem] h-8 px-1.5 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 transition cursor-pointer ${
                     isSelected
                       ? 'bg-emerald-500 text-stone-950 shadow-sm'
                       : 'bg-stone-800 hover:bg-amber-500/25 text-amber-300 border border-amber-500/25'
@@ -387,16 +414,16 @@ Object.assign(window.app, {
                   required
                   maxlength="${maxOpt}"
                   placeholder="Вариант ${letter}"
-                  class="w-full min-w-0 bg-transparent px-1.5 py-1 text-amber-100 text-xs focus:outline-none"
+                  class="w-full min-w-0 bg-transparent px-1.5 py-1.5 text-amber-100 text-sm sm:text-xs focus:outline-none"
                 >
-                ${rawOpts.length > 2 ? `<button type="button" onclick="app.removeQuestionOptionAt('${idPrefix}', ${index}, ${oIdx})" title="Удалить этот вариант" class="w-6 h-6 rounded-md text-amber-200/45 hover:text-rose-300 hover:bg-rose-950/60 text-xs shrink-0 cursor-pointer">×</button>` : ''}
+                ${rawOpts.length > 2 ? `<button type="button" onclick="app.removeQuestionOptionAt('${idPrefix}', ${index}, ${oIdx})" title="Удалить этот вариант" class="w-7 h-7 sm:w-6 sm:h-6 rounded-md text-amber-200/55 hover:text-rose-300 hover:bg-rose-950/60 text-xs flex items-center justify-center shrink-0 cursor-pointer">×</button>` : ''}
               </div>
             `;
           }).join('')}
         </div>
 
         ${rawOpts.length < OPTION_LETTERS.length ? `
-          <button type="button" onclick="app.changeQuestionOptionCount('${idPrefix}', ${index}, 1)" class="w-full py-1.5 rounded-xl border border-dashed border-amber-500/30 hover:border-amber-400/60 hover:bg-amber-500/10 text-amber-200/80 text-xs transition cursor-pointer">
+          <button type="button" onclick="app.changeQuestionOptionCount('${idPrefix}', ${index}, 1)" class="w-full py-2 sm:py-1.5 rounded-xl border border-dashed border-amber-500/30 hover:border-amber-400/60 hover:bg-amber-500/10 text-amber-200/80 text-xs transition cursor-pointer">
             + Добавить вариант ${OPTION_LETTERS[rawOpts.length]}
           </button>
         ` : ''}

@@ -98,7 +98,7 @@
 
   <div
     id="toast"
-    class="fixed top-4 left-4 right-4 sm:left-auto sm:top-5 sm:right-5 sm:max-w-sm z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#1b120e]/95 border border-amber-400/40 text-amber-100 text-xs sm:text-sm shadow-2xl transition-all duration-300 translate-x-full opacity-0"
+    class="fixed top-4 left-4 right-4 sm:left-auto sm:top-5 sm:right-5 sm:max-w-sm z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#1b120e]/95 border border-amber-400/40 text-amber-100 text-xs sm:text-sm shadow-2xl transition-all duration-300 translate-x-full opacity-0 pointer-events-none"
   >
     <span id="toast-icon" class="text-base">✨</span>
     <span id="toast-message"></span>
@@ -193,13 +193,13 @@
     class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur-sm overflow-y-auto overscroll-contain touch-pan-y p-3 sm:p-4"
     style="-webkit-overflow-scrolling: touch;"
   >
-    <div class="cozy-card rounded-3xl p-5 sm:p-7 w-full max-w-3xl mx-auto my-6 space-y-5">
+    <div class="cozy-card rounded-3xl p-4 sm:p-7 w-full max-w-3xl mx-auto my-4 sm:my-6 space-y-5">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-amber-500/20 pb-4">
         <div>
           <span id="creator-mode-badge" class="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-semibold">
             🎟️ Инвайт-режим
           </span>
-          <h2 id="creator-modal-title" class="font-serif text-2xl font-bold text-amber-100 mt-1.5">
+          <h2 id="creator-modal-title" class="font-serif text-xl sm:text-2xl font-bold text-amber-100 mt-1.5">
             Создать свой интерактив
           </h2>
         </div>
@@ -405,7 +405,7 @@
           type="button"
           onclick="app.handleLogoSecretTap()"
           title="Листочек"
-          class="w-11 h-11 rounded-2xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/35 flex items-center justify-center text-2xl transition cursor-pointer select-none"
+          class="w-11 h-11 rounded-2xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/35 flex items-center justify-center text-2xl transition cursor-pointer select-none shrink-0"
         >
           🍂
         </button>
@@ -510,7 +510,7 @@
           <span id="lobby-badge" class="px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-medium"></span>
           <span id="lobby-questions-count" class="text-xs text-amber-200/65"></span>
         </div>
-        <h2 id="lobby-title" class="font-serif text-3xl font-bold text-amber-100"></h2>
+        <h2 id="lobby-title" class="font-serif text-2xl sm:text-3xl font-bold text-amber-100"></h2>
         <div id="lobby-desc" class="text-sm text-amber-200/75"></div>
 
         <div class="pt-2 space-y-2">
@@ -610,8 +610,6 @@
                 <stop offset="55%" stop-color="#f59e0b" stop-opacity="0.22" />
                 <stop offset="100%" stop-color="#f59e0b" stop-opacity="0" />
               </radialGradient>
-            </defs>
-            <defs>
               <linearGradient id="mountainPeakFar" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stop-color="#3b4d6b" />
                 <stop offset="100%" stop-color="#222a3d" />
@@ -797,35 +795,35 @@
           <div>
             <label class="block text-xs text-amber-200/75 mb-2">Символический подарок</label>
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            <button type="button" data-gift="☕ Какао" class="gift-choice-btn p-2.5 rounded-xl bg-amber-500/25 border-2 border-amber-400 text-xs text-center transition cursor-pointer">
-              ☕ Какао
-            </button>
-            <button type="button" data-gift="🍷 Глинтвейн" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
-              🍷 Глинтвейн
-            </button>
-            <button type="button" data-gift="🧣 Плед" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
-              🧣 Плед
-            </button>
-            <button type="button" data-gift="🕯️ Ароматная свеча" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
-              🕯️ Ароматная свеча
-            </button>
-            <button type="button" data-gift="🍪 Имбирное печенье" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
-              🍪 Имбирное печенье
-            </button>
-            <button type="button" data-gift="🎸 Новая струна" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
-              🎸 Новая струна
-            </button>
-            <button type="button" data-gift="✨ Звёздный фонарик" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
-              ✨ Звёздный фонарик
-            </button>
-            <button type="button" data-gift="📖 Тёплая книга" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
-              📖 Тёплая книга
-            </button>
-            <button type="button" data-gift="🎄 Мини-ёлочка" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
-              🎄 Мини-ёлочка
-            </button>
-          </div>
-            <input id="selected-gift" type="hidden" value="Горячий какао ☕" />
+              <button type="button" data-gift="☕ Какао" class="gift-choice-btn p-2.5 rounded-xl bg-amber-500/25 border-2 border-amber-400 text-xs text-center transition cursor-pointer">
+                ☕ Какао
+              </button>
+              <button type="button" data-gift="🍷 Глинтвейн" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+                🍷 Глинтвейн
+              </button>
+              <button type="button" data-gift="🧣 Плед" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+                🧣 Плед
+              </button>
+              <button type="button" data-gift="🕯️ Ароматная свеча" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+                🕯️ Ароматная свеча
+              </button>
+              <button type="button" data-gift="🍪 Имбирное печенье" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+                🍪 Имбирное печенье
+              </button>
+              <button type="button" data-gift="🎸 Новая струна" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+                🎸 Новая струна
+              </button>
+              <button type="button" data-gift="✨ Звёздный фонарик" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+                ✨ Звёздный фонарик
+              </button>
+              <button type="button" data-gift="📖 Тёплая книга" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+                📖 Тёплая книга
+              </button>
+              <button type="button" data-gift="🎄 Мини-ёлочка" class="gift-choice-btn p-2.5 rounded-xl bg-stone-800 border border-amber-500/20 text-xs text-center transition cursor-pointer">
+                🎄 Мини-ёлочка
+              </button>
+            </div>
+            <input id="selected-gift" type="hidden" value="☕ Какао" />
           </div>
 
           <div>
