@@ -29,10 +29,12 @@ function stripOuterQuotes(value) {
 }
 
 function verifyAdminPasscode(passcode) {
-  const expectedRaw = process.env.ADMIN_PASSCODE || process.env.ADMIN_PASSWORD || 'cozy2026';
+  const expectedRaw = process.env.ADMIN_PASSCODE || process.env.ADMIN_PASSWORD;
+  if (!expectedRaw) return false;
+
   const input = stripOuterQuotes(passcode);
   const expected = stripOuterQuotes(expectedRaw);
-  return input.length > 0 && input === expected;
+  return input.length > 0 && expected.length > 0 && input === expected;
 }
 
 export default async function handler(req, res) {
