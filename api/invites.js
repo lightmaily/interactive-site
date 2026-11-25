@@ -1,5 +1,5 @@
-const crypto = require('crypto');
-const { getData, setData, verifyAdminPasscode } = require('./_storage');
+import crypto from 'crypto';
+import { getData, setData, verifyAdminPasscode } from './_storage.js';
 
 function generateInviteCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -16,7 +16,7 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(String(token)).digest('hex');
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
   if (req.method === 'GET') {
@@ -32,7 +32,15 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const body = req.body || {};
+  let body = req.body || {};
+  if (typeof body === 'string') {
+    try {
+      body = body.trim() ? JSON.parse(body) : {};
+    } catch {
+      return res.status(400).json({ error: 'Некорректный формат запроса' });
+    }
+  }
+
   const action = String(body.action || 'redeem');
 
   if (action === 'generate') {
@@ -50,7 +58,7 @@ module.exports = async function handler(req, res) {
     const newInvite = {
       code,
       note,
-      status: 'active', // 'active' | 'redeemed' | 'completed' | 'revoked'
+      status: 'active',
       createdAt: new Date().toISOString(),
       redeemedAt: null,
       quizId: null,
@@ -95,7 +103,7 @@ module.exports = async function handler(req, res) {
       return res.status(403).json({ error: 'Этот инвайт-код был отозван автором' });
     }
     if (invite.status === 'completed' || invite.quizId) {
-      return res.status(403).json({ error: 'По этому коду интерактив уже создан (лимит: 1 интерактив на код)' });
+      return res.status(403).json({ error: 'По этому инвайт-коду уже создан интерактив (лимит: 1 интерактив на код)' });
     }
 
     const ownerToken = crypto.randomBytes(24).toString('hex');
@@ -132,4 +140,4 @@ module.exports = async function handler(req, res) {
   }
 
   return res.status(400).json({ error: 'Неизвестное действие' });
-};
+}
