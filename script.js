@@ -660,12 +660,22 @@ const app = {
   },
 
   shareQuizTelegram(quizId = null) {
-    const quiz = quizId ? this.state.quizzes.find(q => q.id === quizId) : this.state.activeQuiz;
-    if (!quiz) return;
-    const url = this.getQuizUrl(quiz.id);
-    const text = `🍂 Пройди интерактив «${quiz.title}» и построй свой маршрут!`;
+    const targetId = quizId || (this.state.activeQuiz && this.state.activeQuiz.id);
+    const quiz =
+      (targetId && this.state.quizzes.find(q => q.id === targetId)) ||
+      this.state.activeQuiz ||
+      null;
+
+    const url = quiz ? this.getQuizUrl(quiz.id) : window.location.href;
+    const title = quiz && quiz.title ? quiz.title : document.title || 'Уютные интерактивы';
+    const text = `🍂 Пройди интерактив «${title}» и построй свой маршрут!`;
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
-    window.open(shareUrl, '_blank', 'noopener,noreferrer');
+
+    const opened = window.open(shareUrl, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      window.location.href = shareUrl;
+    }
+    this.showToast('Открываем Telegram для отправки ссылки...', '✈️');
   },
 
   setHomeSearch(val) {
