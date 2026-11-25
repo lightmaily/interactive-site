@@ -4,6 +4,7 @@ const app = {
     quizzes: [],
     leaderboards: {},
     activeQuiz: null,
+    initialRouteQuizId: null,
     pendingQuizIdAfterName: null,
     startQuizAfterNameSubmit: false,
     currentQuestionIndex: 0,
@@ -251,6 +252,55 @@ const app = {
     traveler.style.top = `${(currentPos.y / vbH) * 100}%`;
   },
 
+  getQuizIdFromUrl() {
+    try {
+      const pathMatch = window.location.pathname.match(/^\/quiz\/([^/]+)\/?$/);
+      if (pathMatch && pathMatch[1]) {
+        return decodeURIComponent(pathMatch[1]);
+      }
+      const params = new URLSearchParams(window.location.search);
+      const queryId = params.get('quiz');
+      if (queryId) {
+        return queryId.trim();
+      }
+    } catch {
+      // ignore URL parsing errors
+    }
+    return null;
+  },
+
+  getQuizUrl(quizId) {
+    return `${window.location.origin}/quiz/${encodeURIComponent(quizId)}`;
+  },
+
+  syncUrlForHome(replace = false) {
+    if (window.location.pathname !== '/' || window.location.search) {
+      const method = replace ? 'replaceState' : 'pushState';
+      history[method]({ view: 'home' }, '', '/');
+    }
+    document.title = 'Уютные интерактивы';
+  },
+
+  syncUrlForQuiz(quizId, replace = false) {
+    const targetPath = `/quiz/${encodeURIComponent(quizId)}`;
+    if (window.location.pathname !== targetPath || window.location.search) {
+      const method = replace ? 'replaceState' : 'pushState';
+      history[method]({ view: 'quiz-page', quizId }, '', targetPath);
+    }
+  },
+
+  async copyQuizLink(quizId = null) {
+    const id = quizId || (this.state.activeQuiz && this.state.activeQuiz.id);
+    if (!id) return;
+    const url = this.getQuizUrl(id);
+    try {
+      await navigator.clipboard.writeText(url);
+      this.showToast('Ссылка на страницу интерактива скопирована!', '🔗');
+    } catch {
+      window.prompt('Скопируйте ссылку на интерактив:', url);
+    }
+  },
+
   init() {
     this.state.username = '';
     this.updateUserDisplay();
@@ -262,7 +312,18 @@ const app = {
       this.toggleAdminModal();
     }
 
+    const routeQuizId = this.getQuizIdFromUrl();
+    this.state.initialRouteQuizId = routeQuizId;
+
     this.renderHome();
+
+    if (routeQuizId) {
+      const localQuiz = this.state.quizzes.find(q => q.id === routeQuizId);
+      if (localQuiz) {
+        this.openLobby(localQuiz.id, { replaceHistory: true });
+      }
+    }
+
     this.fetchGlobalQuizzes();
     this.fetchGlobalLeaderboards();
   },
@@ -323,6 +384,19 @@ const app = {
       this.state.quizzes = data.quizzes;
       this.saveQuizzes();
 
+      if (this.state.initialRouteQuizId) {
+        const targetId = this.state.initialRouteQuizId;
+        this.state.initialRouteQuizId = null;
+        const foundQuiz = this.state.quizzes.find(q => q.id === targetId);
+        if (foundQuiz) {
+          this.openLobby(foundQuiz.id, { replaceHistory: true });
+          return;
+        } else {
+          this.showToast('Интерактив по этой ссылке не найден', '🕯️');
+          this.syncUrlForHome(true);
+        }
+      }
+
       if (!document.getElementById('view-home').classList.contains('hidden')) {
         this.renderHome();
       }
@@ -330,6 +404,9 @@ const app = {
         const refreshed = this.state.quizzes.find(q => q.id === this.state.activeQuiz.id);
         if (refreshed) {
           this.state.activeQuiz = refreshed;
+          if (!document.getElementById('view-lobby').classList.contains('hidden')) {
+            this.openLobby(refreshed.id, { replaceHistory: true });
+          }
         }
       }
     } catch {
@@ -474,6 +551,18 @@ const app = {
       }
     });
 
+    window.addEventListener('popstate', () => {
+      const routeQuizId = this.getQuizIdFromUrl();
+      if (routeQuizId) {
+        const quiz = this.state.quizzes.find(q => q.id === routeQuizId);
+        if (quiz) {
+          this.openLobby(quiz.id, { skipHistory: true });
+          return;
+        }
+      }
+      this.showHome({ skipHistory: true });
+    });
+
     document.getElementById('admin-pass-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -556,7 +645,12 @@ const app = {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
-  showHome() {
+  showHome(options = {}) {
+    if (!options.skipHistory) {
+      this.syncUrlForHome(Boolean(options.replaceHistory));
+    } else {
+      document.title = 'Уютные интерактивы';
+    }
     this.renderHome();
     this.fetchGlobalQuizzes();
     this.fetchGlobalLeaderboards();
@@ -564,6 +658,7 @@ const app = {
   },
 
   goToQuizzes() {
+    this.syncUrlForHome();
     this.renderHome();
     this.fetchGlobalQuizzes();
     this.fetchGlobalLeaderboards();
@@ -721,9 +816,23 @@ const app = {
           <div class="text-xs text-amber-200/80 min-w-0">
             ${topSummary}
           </div>
-          <button onclick="app.handlePlayClick('${this.escapeHtml(quiz.id)}')" class="cozy-btn text-stone-950 font-bold px-4 py-2 rounded-xl text-sm shrink-0 cursor-pointer">
-            Играть →
-          </button>
+          <div class="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onclick="event.stopPropagation(); app.copyQuizLink('${this.escapeHtml(quiz.id)}')"
+              title="Скопировать ссылку на страницу интерактива"
+              class="px-2.5 py-2 rounded-xl bg-stone-900/80 hover:bg-stone-800 border border-amber-500/25 text-amber-200/85 text-xs transition cursor-pointer"
+            >
+              🔗
+            </button>
+            <button
+              type="button"
+              onclick="app.openLobby('${this.escapeHtml(quiz.id)}')"
+              class="cozy-btn text-stone-950 font-bold px-4 py-2 rounded-xl text-sm cursor-pointer"
+            >
+              Открыть →
+            </button>
+          </div>
         </div>
       `;
       grid.appendChild(card);
@@ -743,13 +852,22 @@ const app = {
     this.startQuiz();
   },
 
-  openLobby(quizId) {
+  openLobby(quizId, options = {}) {
     const quiz = this.state.quizzes.find(q => q.id === quizId);
     if (!quiz) return;
 
     this.state.activeQuiz = quiz;
+    if (!options.skipHistory) {
+      this.syncUrlForQuiz(quiz.id, Boolean(options.replaceHistory));
+    }
+    document.title = `${quiz.title} — Уютные интерактивы`;
+
     const meta = this.getQuizMeta(quiz);
     document.getElementById('lobby-badge').textContent = quiz.badge;
+    const countEl = document.getElementById('lobby-questions-count');
+    if (countEl) {
+      countEl.textContent = `${quiz.questions.length} вопросов`;
+    }
     document.getElementById('lobby-title').textContent = quiz.title;
     document.getElementById('lobby-desc').innerHTML = `
       <span>${this.escapeHtml(quiz.description)}</span>
@@ -1323,9 +1441,10 @@ const app = {
 
     const syncRes = await this.publishQuizToGlobal(newQuiz);
     if (syncRes.ok) {
-      this.renderHome();
-      this.showToast('Новый интерактив опубликован для всех!', '🎄');
+      this.openLobby(newQuiz.id);
+      this.showToast('Новый интерактив опубликован! Открыта его личная страница', '🎄');
     } else {
+      this.openLobby(newQuiz.id);
       this.showToast(syncRes.error, '⚠️');
     }
   }

@@ -287,26 +287,46 @@
     </section>
 
     <section id="view-lobby" class="hidden space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          onclick="app.showHome()"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1b120e] hover:bg-[#261914] border border-amber-500/25 text-xs sm:text-sm text-amber-200 transition cursor-pointer"
+        >
+          <span>← Вернуться ко всем интерактивам</span>
+        </button>
+
+        <button
+          type="button"
+          onclick="app.copyQuizLink()"
+          class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 text-xs sm:text-sm text-amber-300 transition cursor-pointer"
+        >
+          <span>Скопировать ссылку</span>
+          <span>🔗</span>
+        </button>
+      </div>
+
       <div class="cozy-card rounded-3xl p-6 sm:p-8 space-y-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span id="lobby-badge" class="px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-medium"></span>
-          <button
-            type="button"
-            onclick="app.showHome()"
-            class="text-xs text-amber-200/75 hover:text-amber-200 transition cursor-pointer"
-          >
-            ← Все интерактивы
-          </button>
+          <span id="lobby-questions-count" class="text-xs text-amber-200/65"></span>
         </div>
         <h2 id="lobby-title" class="font-serif text-3xl font-bold text-amber-100"></h2>
-        <p id="lobby-desc" class="text-sm text-amber-200/75"></p>
-        <div class="pt-2">
+        <div id="lobby-desc" class="text-sm text-amber-200/75"></div>
+        <div class="pt-2 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onclick="app.startQuiz()"
             class="cozy-btn text-stone-950 font-bold px-6 py-3 rounded-2xl text-sm cursor-pointer"
           >
             Начать путешествие →
+          </button>
+          <button
+            type="button"
+            onclick="app.showHome()"
+            class="px-5 py-3 rounded-2xl bg-stone-900/80 hover:bg-stone-800 border border-amber-500/25 text-amber-200/90 text-sm transition cursor-pointer"
+          >
+            На главную
           </button>
         </div>
       </div>
