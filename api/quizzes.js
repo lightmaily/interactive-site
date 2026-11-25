@@ -5,6 +5,10 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(String(token)).digest('hex');
 }
 
+function isInviteRevoked(inv) {
+  return !inv || Boolean(inv.revoked) || inv.status === 'revoked';
+}
+
 function sanitizeQuizPayload(rawQuiz, existingQuiz = null) {
   const title = String(rawQuiz.title || '').trim().slice(0, 120);
   const badge = String(rawQuiz.badge || '🍂 Осенний вечер').trim().slice(0, 50);
@@ -105,6 +109,9 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'Инвайт-код не найден' });
       }
       const inv = invites[matchedInviteIdx];
+      if (isInviteRevoked(inv)) {
+        return res.status(403).json({ error: 'Этот инвайт-код отозван администратором' });
+      }
       if (inv.status === 'completed' || inv.quizId) {
         return res.status(403).json({ error: 'По этому инвайт-коду уже создан интерактив (лимит: 1 шт.)' });
       }
@@ -159,10 +166,18 @@ export default async function handler(req, res) {
     }
 
     const existing = quizzes[idx];
-    const isOwner = Boolean(existing.ownerTokenHash && ownerToken && existing.ownerTokenHash === hashToken(ownerToken));
+    let isOwner = Boolean(existing.ownerTokenHash && ownerToken && existing.ownerTokenHash === hashToken(ownerToken));
+
+    if (isOwner && existing.inviteCode) {
+      const invites = await getData('invites', []);
+      const inv = invites.find(item => item.code === existing.inviteCode);
+      if (isInviteRevoked(inv)) {
+        isOwner = false;
+      }
+    }
 
     if (!isAdmin && !isOwner) {
-      return res.status(403).json({ error: 'Редактировать интерактив может только его владелец или администратор' });
+      return res.status(403).json({ error: 'Доступ отозван или редактировать может только владелец' });
     }
 
     if (isAdmin && typeof body.hidden === 'boolean' && !body.quiz) {
