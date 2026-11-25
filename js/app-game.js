@@ -42,15 +42,21 @@ Object.assign(window.app, {
 
     this.state.quizStartTimeMs = performance.now();
     this.state.quizElapsedSec = 0;
+    let lastRendered = '0.0';
     if (timerEl) {
       timerEl.textContent = '⏱️ 0.0с';
       timerEl.classList.remove('hidden');
     }
 
     this.state.timerIntervalId = setInterval(() => {
-      this.state.quizElapsedSec = Math.round(((performance.now() - this.state.quizStartTimeMs) / 1000) * 10) / 10;
-      if (timerEl) timerEl.textContent = `⏱️ ${this.state.quizElapsedSec.toFixed(1)}с`;
-    }, 100);
+      const elapsed = Math.round(((performance.now() - this.state.quizStartTimeMs) / 1000) * 10) / 10;
+      this.state.quizElapsedSec = elapsed;
+      const formatted = elapsed.toFixed(1);
+      if (timerEl && formatted !== lastRendered) {
+        lastRendered = formatted;
+        timerEl.textContent = `⏱️ ${formatted}с`;
+      }
+    }, 150);
   },
 
   stopQuizTimer() {

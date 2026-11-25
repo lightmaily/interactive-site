@@ -203,6 +203,14 @@ Object.assign(window.app, {
 
     svg.querySelectorAll('.js-animated-stroke').forEach(pathEl => {
       try {
+        const shouldAnimate =
+          pathEl.classList.contains('path-draw-active') ||
+          pathEl.classList.contains('branch-sprout');
+        if (!shouldAnimate) {
+          pathEl.style.strokeDasharray = 'none';
+          pathEl.style.strokeDashoffset = '0';
+          return;
+        }
         const len = pathEl.getTotalLength();
         if (!len || !isFinite(len)) return;
         pathEl.style.strokeDasharray = `${len}`;
@@ -210,10 +218,14 @@ Object.assign(window.app, {
         if (typeof pathEl.animate === 'function') {
           const anim = pathEl.animate(
             [{ strokeDashoffset: String(len) }, { strokeDashoffset: '0' }],
-            { duration: 650, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
+            { duration: 550, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
           );
-          anim.onfinish = () => { pathEl.style.strokeDashoffset = '0'; };
+          anim.onfinish = () => {
+            pathEl.style.strokeDasharray = 'none';
+            pathEl.style.strokeDashoffset = '0';
+          };
         } else {
+          pathEl.style.strokeDasharray = 'none';
           pathEl.style.strokeDashoffset = '0';
         }
       } catch {}
