@@ -1,5 +1,6 @@
 const adminApp = {
   passcode: sessionStorage.getItem('cozy_admin_pass') || '',
+  _optionLetters: ['A', 'B', 'C', 'D', 'E', 'F'],
 
   init() {
     document.getElementById('admin-login-form').addEventListener('submit', async (e) => {
@@ -80,7 +81,7 @@ const adminApp = {
     await Promise.all([this.loadInvites(), this.loadQuizzes()]);
   },
 
- async loadInvites() {
+  async loadInvites() {
     const res = await fetch(`/api/invites?passcode=${encodeURIComponent(this.passcode)}`);
     const data = await res.json().catch(() => ({}));
     const list = Array.isArray(data.invites) ? data.invites : [];
@@ -261,7 +262,6 @@ const adminApp = {
   toggleNewQuizForm() {
     document.getElementById('admin-create-quiz-form').classList.toggle('hidden');
   },
-  _optionLetters: ['A', 'B', 'C', 'D', 'E', 'F'],
 
   _collectAdmDraft() {
     const draft = [];
@@ -285,31 +285,61 @@ const adminApp = {
     }
     return draft;
   },
-  
-  changeAdmOptionCount(qIndex, delta, prefill = null) {
-    const draft = Array.isArray(prefill) ? prefill : this._collectAdmDraft();
+
+  selectAdmCorrect(qIndex, optIndex) {
+    const hidden = document.getElementById(`adm-q-correct-${qIndex}`);
+    if (hidden) hidden.value = String(optIndex);
+
+    for (let oIdx = 0; oIdx < this._optionLetters.length; oIdx++) {
+      const row = document.getElementById(`adm-q-${qIndex}-row-${oIdx}`);
+      const btn = document.getElementById(`adm-q-${qIndex}-pick-${oIdx}`);
+      if (!row || !btn) break;
+
+      const isSelected = oIdx === optIndex;
+      row.className = `flex items-center gap-1.5 p-1.5 rounded-xl border transition ${
+        isSelected
+          ? 'bg-emerald-950/55 border-emerald-400/70'
+          : 'bg-stone-950/90 border-amber-500/15 hover:border-amber-500/35'
+      }`;
+      btn.className = `w-8 h-8 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 transition cursor-pointer ${
+        isSelected ? 'bg-emerald-500 text-stone-950' : 'bg-stone-800 hover:bg-amber-500/25 text-amber-300 border border-amber-500/25'
+      }`;
+      btn.textContent = isSelected ? `✓ ${this._optionLetters[oIdx]}` : this._optionLetters[oIdx];
+    }
+  },
+
+  setAdmOptionCount(qIndex, targetCount) {
+    const draft = this._collectAdmDraft();
     const target = draft[qIndex];
     if (!target) return;
 
-    const nextLen = target.options.length + delta;
-    if (nextLen < 2) {
+    const clamped = Math.max(2, Math.min(this._optionLetters.length, targetCount));
+    while (target.options.length < clamped) target.options.push('');
+    if (target.options.length > clamped) {
+      target.options.length = clamped;
+      if (target.correct >= clamped) target.correct = clamped - 1;
+    }
+    this.renderAdminQuestionInputs(draft);
+  },
+
+  removeAdmOptionAt(qIndex, optIndex) {
+    const draft = this._collectAdmDraft();
+    const target = draft[qIndex];
+    if (!target || target.options.length <= 2) {
       this.toast('Минимум 2 варианта ответа');
       return;
     }
-    if (nextLen > this._optionLetters.length) {
-      this.toast(`Максимум ${this._optionLetters.length} вариантов ответа`);
-      return;
-    }
-
-    if (delta > 0) {
-      target.options.push('');
-    } else {
-      target.options.pop();
-      if (target.correct >= target.options.length) {
-        target.correct = target.options.length - 1;
-      }
-    }
+    target.options.splice(optIndex, 1);
+    if (target.correct === optIndex) target.correct = 0;
+    else if (target.correct > optIndex) target.correct -= 1;
     this.renderAdminQuestionInputs(draft);
+  },
+
+  changeAdmOptionCount(qIndex, delta) {
+    const draft = this._collectAdmDraft();
+    const target = draft[qIndex];
+    if (!target) return;
+    this.setAdmOptionCount(qIndex, target.options.length + delta);
   },
 
   renderAdminQuestionInputs(prefill = null) {
@@ -326,31 +356,47 @@ const adminApp = {
       const rawCorr = item ? Number(item.correct) : 0;
       const correct = Number.isNaN(rawCorr) ? 0 : Math.min(Math.max(0, rawCorr), rawOpts.length - 1);
 
-      const corrSelectOpts = rawOpts.map((_, oIdx) =>
-        `<option value="${oIdx}" ${correct === oIdx ? 'selected' : ''}>Верный: ${this._optionLetters[oIdx]}</option>`
-      ).join('');
+      const countChips = [2, 3, 4, 5, 6].map(num => `
+        <button type="button" onclick="adminApp.setAdmOptionCount(${i}, ${num})" class="w-6 h-6 rounded-md text-[11px] font-bold transition cursor-pointer ${
+          rawOpts.length === num ? 'bg-amber-400 text-stone-950' : 'bg-stone-800 hover:bg-stone-700 text-amber-200/80'
+        }">${num}</button>
+      `).join('');
 
       html += `
-        <div class="p-3.5 rounded-2xl bg-[#140e0b] border border-amber-500/20 space-y-2">
+        <div class="p-3.5 rounded-2xl bg-[#140e0b] border border-amber-500/20 space-y-2.5">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <span class="text-xs font-bold text-amber-400">Вопрос #${i + 1}</span>
-            <div class="flex items-center gap-2">
-              <div class="inline-flex items-center gap-1 bg-stone-800/90 border border-amber-500/25 rounded-lg px-1.5 py-0.5 text-[11px] text-amber-200/85">
-                <span>Ответов: ${rawOpts.length}</span>
-                <button type="button" onclick="adminApp.changeAdmOptionCount(${i}, -1)" ${rawOpts.length <= 2 ? 'disabled' : ''} class="px-1.5 rounded bg-stone-700 hover:bg-stone-600 disabled:opacity-35 text-amber-200 font-bold cursor-pointer">−</button>
-                <button type="button" onclick="adminApp.changeAdmOptionCount(${i}, 1)" ${rawOpts.length >= this._optionLetters.length ? 'disabled' : ''} class="px-1.5 rounded bg-stone-700 hover:bg-stone-600 disabled:opacity-35 text-amber-200 font-bold cursor-pointer">+</button>
-              </div>
-              <select id="adm-q-correct-${i}" class="bg-stone-800 border border-amber-500/30 rounded px-2 py-0.5 text-xs text-amber-300">
-                ${corrSelectOpts}
-              </select>
+            <div class="inline-flex items-center gap-1 bg-stone-950 border border-amber-500/20 rounded-lg p-0.5">
+              <span class="text-[10px] text-amber-200/60 px-1.5">Ответов:</span>
+              ${countChips}
             </div>
           </div>
+          <input type="hidden" id="adm-q-correct-${i}" value="${correct}" />
           <input id="adm-q-text-${i}" type="text" value="${this.esc(item?.q || '')}" required placeholder="Вопрос ${i + 1}" class="w-full px-3 py-1.5 rounded-lg bg-stone-950 border border-amber-500/20 text-amber-100 text-xs" />
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            ${rawOpts.map((optVal, oIdx) => `
-              <input id="adm-q-${i}-opt-${oIdx}" type="text" value="${this.esc(optVal || '')}" required placeholder="Вариант ${this._optionLetters[oIdx]}" class="px-2.5 py-1.5 rounded-lg bg-stone-950 border border-amber-500/15 text-amber-100 text-xs" />
-            `).join('')}
+            ${rawOpts.map((optVal, oIdx) => {
+              const isSelected = correct === oIdx;
+              const letter = this._optionLetters[oIdx];
+              return `
+                <div id="adm-q-${i}-row-${oIdx}" class="flex items-center gap-1.5 p-1.5 rounded-xl border transition ${
+                  isSelected
+                    ? 'bg-emerald-950/55 border-emerald-400/70'
+                    : 'bg-stone-950/90 border-amber-500/15 hover:border-amber-500/35'
+                }">
+                  <button type="button" id="adm-q-${i}-pick-${oIdx}" onclick="adminApp.selectAdmCorrect(${i}, ${oIdx})" class="w-8 h-8 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 transition cursor-pointer ${
+                    isSelected ? 'bg-emerald-500 text-stone-950' : 'bg-stone-800 hover:bg-amber-500/25 text-amber-300 border border-amber-500/25'
+                  }">${isSelected ? `✓ ${letter}` : letter}</button>
+                  <input id="adm-q-${i}-opt-${oIdx}" type="text" value="${this.esc(optVal || '')}" required placeholder="Вариант ${letter}" class="w-full min-w-0 bg-transparent px-1.5 py-1 text-amber-100 text-xs focus:outline-none" />
+                  ${rawOpts.length > 2 ? `<button type="button" onclick="adminApp.removeAdmOptionAt(${i}, ${oIdx})" class="w-6 h-6 rounded-md text-amber-200/45 hover:text-rose-300 text-xs shrink-0 cursor-pointer">×</button>` : ''}
+                </div>
+              `;
+            }).join('')}
           </div>
+          ${rawOpts.length < this._optionLetters.length ? `
+            <button type="button" onclick="adminApp.changeAdmOptionCount(${i}, 1)" class="w-full py-1 rounded-xl border border-dashed border-amber-500/25 hover:border-amber-400/60 text-amber-200/75 text-xs cursor-pointer">
+              + Добавить вариант ${this._optionLetters[rawOpts.length]}
+            </button>
+          ` : ''}
         </div>
       `;
     }
@@ -370,11 +416,11 @@ const adminApp = {
       questions.push({
         q: document.getElementById(`adm-q-text-${i}`).value.trim(),
         options,
-        correct: parseInt(document.getElementById(`adm-q-correct-${i}`).value, 10)
+        correct: parseInt(document.getElementById(`adm-q-correct-${i}`).value, 10) || 0
       });
     }
 
-   const res = await fetch('/api/quizzes', {
+    const res = await fetch('/api/quizzes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -388,7 +434,7 @@ const adminApp = {
         }
       })
     });
-   const data = await res.json().catch(() => ({}));
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       this.toast(data.error || 'Ошибка создания');
       return;
