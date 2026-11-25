@@ -421,8 +421,27 @@ const app = {
         this.showToast(data.error || 'Не удалось активировать код', '🔒');
         return;
       }
-      this.saveOwnerSession({ code: data.code || code, ownerToken: data.ownerToken, ownedQuizId: null });
+
+      const ownedQuizId = data.ownedQuizId || null;
+      this.saveOwnerSession({
+        code: data.code || code,
+        ownerToken: data.ownerToken,
+        ownedQuizId
+      });
+
       this.closeInviteModal();
+
+      if (ownedQuizId) {
+        await this.fetchGlobalQuizzes();
+        const existingQuiz = this.state.quizzes.find(q => q.id === ownedQuizId);
+        if (existingQuiz) {
+          this.showToast('Сессия владельца восстановлена! Открываем ваш интерактив', '✏️');
+          this.openLobby(existingQuiz.id);
+          this.openEditOwnedQuiz();
+          return;
+        }
+      }
+
       this.showToast('Код принят! Теперь можно создать 1 свой интерактив', '🎟️');
       this.openCreateOwnedQuiz();
     } catch {
@@ -787,6 +806,16 @@ const app = {
 
       this.state.quizzes = data.quizzes;
       this.saveQuizzes();
+
+      if (this.state.ownerSession?.ownedQuizId) {
+        const stillExists = this.state.quizzes.some(q => q.id === this.state.ownerSession.ownedQuizId);
+        if (!stillExists) {
+          this.saveOwnerSession({
+            ...this.state.ownerSession,
+            ownedQuizId: null
+          });
+        }
+      }
 
       if (this.state.initialRouteQuizId) {
         const targetId = this.state.initialRouteQuizId;

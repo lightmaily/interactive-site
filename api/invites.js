@@ -102,23 +102,34 @@ export default async function handler(req, res) {
     if (invite.status === 'revoked') {
       return res.status(403).json({ error: 'Этот инвайт-код был отозван автором' });
     }
-    if (invite.status === 'completed' || invite.quizId) {
-      return res.status(403).json({ error: 'По этому инвайт-коду уже создан интерактив (лимит: 1 интерактив на код)' });
-    }
 
     const ownerToken = crypto.randomBytes(24).toString('hex');
-    invite.status = 'redeemed';
-    invite.redeemedAt = new Date().toISOString();
-    invite.ownerTokenHash = hashToken(ownerToken);
+    const newTokenHash = hashToken(ownerToken);
 
+    if (invite.status === 'active' || !invite.redeemedAt) {
+      invite.status = 'redeemed';
+      invite.redeemedAt = new Date().toISOString();
+    }
+    invite.ownerTokenHash = newTokenHash;
     invites[idx] = invite;
     await setData('invites', invites);
+
+    if (invite.quizId) {
+      const quizzes = await getData('quizzes', []);
+      const qIdx = quizzes.findIndex(q => q.id === invite.quizId);
+      if (qIdx !== -1) {
+        quizzes[qIdx].ownerTokenHash = newTokenHash;
+        quizzes[qIdx].updatedAt = new Date().toISOString();
+        await setData('quizzes', quizzes);
+      }
+    }
 
     return res.status(200).json({
       ok: true,
       code: invite.code,
       ownerToken,
-      canCreate: true
+      ownedQuizId: invite.quizId || null,
+      canCreate: !invite.quizId
     });
   }
 
