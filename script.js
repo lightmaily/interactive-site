@@ -10,13 +10,13 @@ const app = {
     currentQuestionIndex: 0,
     currentScore: 0,
     routeHistory: [],
-    playMode: 'relaxed', // 'relaxed' | 'speed'
+    playMode: 'relaxed',
     quizStartTimeMs: null,
     quizElapsedSec: 0,
     timerIntervalId: null,
     homeSearch: '',
     homeTagFilter: 'ALL',
-    ownerSession: null, // { code, ownerToken, ownedQuizId }
+    ownerSession: null,
     editingQuizId: null,
     isAdminUnlocked: false,
     adminPasscode: '',
@@ -422,6 +422,43 @@ const app = {
     }
   },
 
+  getNormalizedOwnerCount(rawVal) {
+    const num = parseInt(rawVal, 10);
+    if (Number.isNaN(num)) return 10;
+    return Math.max(3, Math.min(30, num));
+  },
+
+  syncOwnerQuestionCount(val) {
+    const count = this.getNormalizedOwnerCount(val);
+    const input = document.getElementById('owner-quiz-count');
+    if (input) input.value = String(count);
+    this.renderOwnerQuestionInputs();
+  },
+
+  handleOwnerQuestionCountInput() {
+    const input = document.getElementById('owner-quiz-count');
+    const preset = document.getElementById('owner-quiz-count-preset');
+    if (!input) return;
+
+    const raw = input.value.trim();
+    if (!raw) return;
+
+    const parsed = parseInt(raw, 10);
+    if (Number.isNaN(parsed)) return;
+
+    if (parsed > 30) {
+      input.value = '30';
+      this.showToast('Максимум 30 вопросов', 'ℹ️');
+    }
+
+    const clamped = this.getNormalizedOwnerCount(input.value);
+    if (preset) {
+      const hasOption = Array.from(preset.options).some(opt => Number(opt.value) === clamped);
+      preset.value = hasOption ? String(clamped) : '';
+    }
+    this.renderOwnerQuestionInputs();
+  },
+
   openCreateOwnedQuiz() {
     const sess = this.state.ownerSession;
     if (!sess || !sess.ownerToken) {
@@ -440,8 +477,12 @@ const app = {
     document.getElementById('owner-quiz-save-btn').textContent = 'Опубликовать интерактив ✨';
     document.getElementById('owner-quiz-form').reset();
     document.getElementById('owner-quiz-author').value = this.state.username || '';
-    document.getElementById('owner-quiz-count').value = '10';
-    document.getElementById('owner-quiz-count').disabled = false;
+
+    const countInput = document.getElementById('owner-quiz-count');
+    const presetSelect = document.getElementById('owner-quiz-count-preset');
+    if (countInput) countInput.value = '10';
+    if (presetSelect) presetSelect.value = '10';
+
     this.renderOwnerQuestionInputs();
     document.getElementById('creator-modal').classList.remove('hidden');
   },
@@ -464,15 +505,15 @@ const app = {
     document.getElementById('owner-quiz-author').value = quiz.author || '';
     document.getElementById('owner-quiz-desc').value = quiz.description || '';
 
-    const countSelect = document.getElementById('owner-quiz-count');
-    const qLen = Array.isArray(quiz.questions) ? quiz.questions.length : 10;
-    if (![5, 8, 10, 12, 15].includes(qLen)) {
-      const opt = document.createElement('option');
-      opt.value = String(qLen);
-      opt.textContent = `${qLen} вопросов`;
-      countSelect.appendChild(opt);
+    const qLen = this.getNormalizedOwnerCount(Array.isArray(quiz.questions) ? quiz.questions.length : 10);
+    const countInput = document.getElementById('owner-quiz-count');
+    const presetSelect = document.getElementById('owner-quiz-count-preset');
+    if (countInput) countInput.value = String(qLen);
+    if (presetSelect) {
+      const hasOption = Array.from(presetSelect.options).some(opt => Number(opt.value) === qLen);
+      presetSelect.value = hasOption ? String(qLen) : '';
     }
-    countSelect.value = String(qLen);
+
     this.renderOwnerQuestionInputs(quiz.questions || []);
     document.getElementById('creator-modal').classList.remove('hidden');
   },
@@ -485,10 +526,10 @@ const app = {
 
   renderOwnerQuestionInputs(prefillQuestions = null) {
     const container = document.getElementById('owner-questions-list');
-    const countSelect = document.getElementById('owner-quiz-count');
-    if (!container || !countSelect) return;
+    const countInput = document.getElementById('owner-quiz-count');
+    if (!container || !countInput) return;
 
-    const count = Math.max(3, Math.min(20, parseInt(countSelect.value, 10) || 10));
+    const count = this.getNormalizedOwnerCount(countInput.value);
     let html = '';
 
     for (let i = 0; i < count; i++) {
@@ -535,7 +576,7 @@ const app = {
     const badge = document.getElementById('owner-quiz-badge').value;
     const author = (document.getElementById('owner-quiz-author').value.trim() || this.state.username || 'Гость').slice(0, 40);
     const description = document.getElementById('owner-quiz-desc').value.trim();
-    const count = parseInt(document.getElementById('owner-quiz-count').value, 10) || 10;
+    const count = this.getNormalizedOwnerCount(document.getElementById('owner-quiz-count').value);
 
     const questions = [];
     for (let i = 0; i < count; i++) {
@@ -1576,7 +1617,6 @@ const app = {
       el.style.strokeDashoffset = '0';
     });
 
-    // Гарантируем видимость неба, гор, снежных холмов и непрозрачного домика в итоговом превью
     const skyRect = clonedSvg.querySelector('rect');
     if (skyRect) {
       skyRect.setAttribute('fill', '#1a243b');
@@ -1928,7 +1968,7 @@ const app = {
 };
 
 window.addEventListener('DOMContentLoaded', () => app.init());
-// --- Интеграция новогоднего домика, ёлки на холме и плавной подсветки пути ---
+
 (function() {
   const TREE_SCALE = 1.6;
   const TREE_TIP_LOCAL_Y = -10;
@@ -1995,7 +2035,6 @@ window.addEventListener('DOMContentLoaded', () => app.init());
       : 10;
     const finalLabel = String(total);
 
-    // Ищем самый последний элемент пути (номер total)
     const nodesLayer = document.getElementById('map-nodes-layer');
     if (nodesLayer) {
       const texts = Array.from(nodesLayer.querySelectorAll('text'));
@@ -2010,7 +2049,6 @@ window.addEventListener('DOMContentLoaded', () => app.init());
       }
     }
 
-    // Координаты последнего элемента пути (waypoints[total] -> main)
     return isMobile ? { x: 210, y: 75 } : { x: 1130, y: 105 };
   }
 
@@ -2037,7 +2075,6 @@ window.addEventListener('DOMContentLoaded', () => app.init());
       const scale = isNarrow ? 0.95 : TREE_SCALE;
       const tipOffsetY = Math.abs(TREE_TIP_LOCAL_Y) * scale;
       const finalPt = getFinalElementAnchor(isNarrow);
-      // Статично привязываем вершину звезды ёлки к самому последнему элементу пути
       const treeX = Math.min(vbW - 45, Math.max(150, finalPt.x));
       const treeY = finalPt.y + tipOffsetY - 10;
 

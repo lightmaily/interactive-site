@@ -17,8 +17,8 @@ function sanitizeQuizPayload(rawQuiz, existingQuiz = null) {
   }
 
   const rawQuestions = Array.isArray(rawQuiz.questions) ? rawQuiz.questions : [];
-  if (rawQuestions.length < 3 || rawQuestions.length > 20) {
-    return { error: 'Количество вопросов должно быть от 3 до 20' };
+  if (rawQuestions.length < 3 || rawQuestions.length > 30) {
+    return { error: 'Количество вопросов должно быть от 3 до 30' };
   }
 
   const questions = [];
