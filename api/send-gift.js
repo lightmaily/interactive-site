@@ -1,4 +1,4 @@
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -15,7 +15,16 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  const { senderName, quizTitle, score, rating, gift, message } = req.body || {};
+  let body = req.body || {};
+  if (typeof body === 'string') {
+    try {
+      body = body.trim() ? JSON.parse(body) : {};
+    } catch {
+      return res.status(400).json({ error: 'Некорректный формат запроса' });
+    }
+  }
+
+  const { senderName, quizTitle, score, rating, gift, message } = body;
 
   try {
     const response = await fetch('https://api.resend.com/emails', {
@@ -49,4 +58,4 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Внутренняя ошибка отправки' });
   }
-};
+}

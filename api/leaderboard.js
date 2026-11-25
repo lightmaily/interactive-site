@@ -1,4 +1,4 @@
-const { getData, setData, verifyAdminPasscode } = require('./_storage');
+import { getData, setData, verifyAdminPasscode } from './_storage.js';
 
 function sortEntries(list) {
   return [...list].sort((a, b) => {
@@ -10,7 +10,7 @@ function sortEntries(list) {
   });
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
   if (req.method === 'GET') {
@@ -22,8 +22,16 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ leaderboards: boards });
   }
 
+  let body = req.body || {};
+  if (typeof body === 'string') {
+    try {
+      body = body.trim() ? JSON.parse(body) : {};
+    } catch {
+      return res.status(400).json({ error: 'Некорректный формат запроса' });
+    }
+  }
+
   if (req.method === 'POST') {
-    const body = req.body || {};
     const quizId = String(body.quizId || '').trim();
     const name = String(body.name || 'Гость').trim().slice(0, 24);
     const score = Math.max(0, Number(body.score) || 0);
@@ -66,7 +74,6 @@ module.exports = async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
-    const body = req.body || {};
     if (!verifyAdminPasscode(body.passcode)) {
       return res.status(401).json({ error: 'Неверный пароль администратора' });
     }
@@ -80,4 +87,4 @@ module.exports = async function handler(req, res) {
   }
 
   return res.status(405).json({ error: 'Method Not Allowed' });
-};
+}

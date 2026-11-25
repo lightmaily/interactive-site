@@ -1,6 +1,6 @@
-const fs = require('fs');
-const path = require('path');
-const { getData } = require('./_storage');
+import fs from 'fs';
+import path from 'path';
+import { getData } from './_storage.js';
 
 function escapeAttr(str) {
   return String(str || '')
@@ -10,7 +10,7 @@ function escapeAttr(str) {
     .replace(/>/g, '&gt;');
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   const quizId = String((req.query && req.query.id) || '').trim();
   const htmlPath = path.join(process.cwd(), 'index.html');
   let html = fs.readFileSync(htmlPath, 'utf8');
@@ -48,4 +48,4 @@ module.exports = async function handler(req, res) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).send(html);
-};
+}
